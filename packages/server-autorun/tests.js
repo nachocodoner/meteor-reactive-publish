@@ -1,6 +1,7 @@
 import { Tinytest } from 'meteor/tinytest';
 import { Tracker } from 'meteor/tracker';
 import { ReactiveVar } from 'meteor/reactive-var';
+import { Mongo } from 'meteor/mongo';
 
 Tinytest.addAsync(
   'server-autorun: testReactiveVariable',
@@ -193,9 +194,63 @@ Tinytest.addAsync(
       'flush-before',
       'flush-after',
     ];
-    console.log('=>(tests.js:201) runs', runs);
     test.equal(runs, expected);
     computation.stop();
     done();
   }
 );
+
+Tinytest.addAsync('server-autorun: testQueries', async function (test, done) {
+  const computations = [];
+  const variable = new ReactiveVar(0);
+  const runs = [];
+  let collection = new Mongo.Collection(`test_collection-${test.id}`);
+  collection = Meteor.isClient ? collection._collection : collection;
+
+  // Remove all existing documents by retrieving their _id values and removing them individually.
+  let docs = await collection.find({}).fetchAsync({});
+  await Promise.all(docs.map((doc) => collection.removeAsync(doc._id)));
+
+  computations.push(
+    Tracker.autorun(async () => {
+      const variableValue = variable.get();
+      await collection.insertAsync({ variable: variableValue });
+    })
+  );
+
+  computations.push(
+    Tracker.autorun(async () => {
+      // Depend on the reactive variable.
+      const variableValue = variable.get();
+      if (Meteor.isServer) {
+        await Meteor._sleepForMs(100);
+      }
+      // Use nonreactive query.
+      const doc = await collection.findOneAsync(
+        { variable: variableValue },
+        { reactive: false }
+      );
+      runs.push(doc ? doc.variable : undefined);
+    })
+  );
+
+  variable.set(1);
+  await Tracker.flush();
+
+  variable.set(1);
+  await Tracker.flush();
+
+  variable.set(2);
+  await Tracker.flush();
+
+  await Meteor._sleepForMs(200);
+
+  test.equal(runs, [0, 1, 2]);
+  computations.forEach((c) => c.stop());
+
+  // Remove all documents again by their _id values.
+  docs = await collection.find({}).fetchAsync({});
+  await Promise.all(docs.map((doc) => collection.removeAsync(doc._id)));
+
+  done();
+});
