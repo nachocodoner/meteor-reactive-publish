@@ -254,3 +254,167 @@ Tinytest.addAsync('server-autorun: testQueries', async function (test, done) {
 
   done();
 });
+
+if (Meteor.isClient) {
+  // Reactive mongo support? TODO
+  Tinytest.addAsync(
+    'server-autorun: testLocalQueries',
+    async function (test, done) {
+      const localCollection = new Mongo.Collection(null);
+      const computations = [];
+      const variable = new ReactiveVar(0);
+      const runs = [];
+
+      computations.push(
+        Tracker.autorun(() => {
+          localCollection.insert({ variable: variable.get() });
+        })
+      );
+
+      computations.push(
+        Tracker.autorun(async () => {
+          const doc = localCollection.findOne({});
+          console.log('=>(tests.js:275) doc', doc);
+          runs.push(doc ? doc.variable : undefined);
+          localCollection.remove({});
+        })
+      );
+
+      variable.set(1);
+      await Tracker.flush();
+
+      variable.set(1);
+      await Tracker.flush();
+
+      variable.set(2);
+      await Tracker.flush();
+
+      test.equal(runs, [0, undefined, 1, undefined, 2, undefined]);
+      computations.forEach((c) => c.stop());
+      done();
+    }
+  );
+}
+
+Tinytest.addAsync(
+  'server-autorun: testServerFlushWithAsync',
+  async function (test, done) {
+    let computation;
+    let afterFlushHasExecuted = false;
+    Tracker.afterFlush(() => {
+      afterFlushHasExecuted = true;
+    });
+
+    computation = Tracker.autorun(async () => {
+      // Simulate yielding within the computation.
+      await Meteor._sleepForMs(500);
+    });
+
+    // Outside the computation, yield so that deferred flush can run.
+    await Meteor._sleepForMs(500);
+
+    test.isTrue(afterFlushHasExecuted);
+    computation.stop();
+    done();
+  }
+);
+
+Tinytest.addAsync(
+  'server-autorun: testServerParallelComputations',
+  async function (test, done) {
+    const computations = [];
+
+    // Instead of spawning fibers, simply run two autoruns.
+    computations.push(
+      Tracker.autorun(async () => {
+        await Meteor._sleepForMs(100);
+      })
+    );
+    computations.push(
+      Tracker.autorun(async () => {
+        await Meteor._sleepForMs(200);
+      })
+    );
+
+    // Wait long enough for both to run.
+    await Meteor._sleepForMs(500);
+
+    let afterFlushHasExecuted = false;
+    Tracker.afterFlush(() => {
+      afterFlushHasExecuted = true;
+    });
+
+    // Yield so that the afterFlush callback is executed.
+    await Meteor._sleepForMs(500);
+
+    test.isTrue(afterFlushHasExecuted);
+    computations.forEach((c) => c.stop());
+    done();
+  }
+);
+
+Tinytest.addAsync(
+  'server-autorun: testServerBlockingStop',
+  async function (test, done) {
+    const trigger = new ReactiveVar(0);
+    let startedAutorun = false;
+    let finishedAutorun = false;
+
+    const computation = Tracker.autorun(async (comp) => {
+      trigger.get();
+      if (comp.firstRun) return;
+      startedAutorun = true;
+      await Meteor._sleepForMs(50);
+      finishedAutorun = true;
+    });
+
+    trigger.set(1);
+
+    test.isFalse(startedAutorun);
+    test.isFalse(finishedAutorun);
+
+    await Meteor._sleepForMs(100);
+
+    test.isTrue(startedAutorun);
+    test.isTrue(finishedAutorun);
+
+    // Calling stop should block until the computation finishes.
+    computation.stop();
+    done();
+  }
+);
+
+Tinytest.addAsync(
+  'server-autorun: testServerNonfiberInvalidation',
+  async function (test, done) {
+    const trigger = new ReactiveVar(0);
+    const runs = [];
+
+    const computation = Tracker.autorun(() => {
+      runs.push(trigger.get());
+    });
+
+    // Wrap exceptions so that they cause test failure.
+    const exception = Meteor.bindEnvironment((error) => {
+      test.fail({
+        type: 'exception',
+        message: error.message,
+        stack: error.stack,
+      });
+    });
+
+    setTimeout(() => {
+      try {
+        trigger.set(1);
+      } catch (error) {
+        exception(error);
+      }
+    }, 5);
+
+    await Meteor._sleepForMs(20);
+
+    test.equal(runs, [0, 1]);
+    computation.stop();
+    done();
+  }
+);
