@@ -1,0 +1,49 @@
+{
+  "name": "bundlers",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Integrate modern bundlers with Meteor",
+  "main": "index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {
+    "prepare": "husky install",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/meteor/bundlers.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/meteor/bundlers/issues"
+  },
+  "homepage": "https://github.com/meteor/bundlers#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-prettier": "^5.2.3",
+    "eslint-plugin-react": "^7.37.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3",
+    "react": "^19.0.0"
+  },
+  "lint-staged": {
+    "**/*.{js,ts,tsx}": [
+      "eslint --ext .js,.jsx,.ts,.tsx --fix",
+      "prettier --write"
+    ]
+  },
+  "volta": {
+    "node": "22.14.0"
+  }
+}
