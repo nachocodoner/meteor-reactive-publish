@@ -52,6 +52,7 @@ export default [
         // Define Meteor global explicitly
         Meteor: 'readonly',
         Package: 'readonly',
+        testAsyncMulti: 'readonly',
       },
     },
     plugins: { '@typescript-eslint': ts },
