@@ -1,171 +1,113 @@
-// Import required Meteor packages.
-import { Tracker } from 'meteor/tracker';
-import { MongoInternals } from 'meteor/mongo';
+import { AsyncTracker } from 'meteor/server-autorun';
+import { MongoInternals, Mongo } from 'meteor/mongo';
 
-// Get a reference to the MeteorCursor constructor.
-// (Assumes that MongoInternals.defaultRemoteCollectionDriver() exists.)
-const MeteorCursor = Object.getPrototypeOf(
-  MongoInternals.defaultRemoteCollectionDriver().mongo.find()
-).constructor;
-
-// Save original methods for later use.
-const originalCount = MeteorCursor.prototype.count;
-const originalCountAsync = MeteorCursor.prototype.countAsync;
-
-// The next line is a PeerDB extension. It might not exist if the package is used
-// without PeerDB. However, we have defined a weak dependency on PeerDB so that it
-// is loaded before this package and has the chance to extend MeteorCursor.
-const originalExists = MeteorCursor.prototype.exists;
-
-// Add a method to decide if the cursor should be reactive.
-// By default all cursors are reactive unless options.reactive is set otherwise.
-MeteorCursor.prototype._isReactive = function () {
-  const options = this._cursorDescription.options || {};
-  return options.reactive !== undefined ? options.reactive : true;
-};
-
-// Define a helper method that creates a dependency for reactivity.
-MeteorCursor.prototype._depend = async function (changers) {
-  // Exit if no Tracker computation is active.
-  if (!Tracker.active) {
-    return;
-  }
-
-  // Create and trigger a Tracker dependency.
-  const dependency = new Tracker.Dependency();
-  dependency.depend();
-
-  // On the server, observeChangesAsync does not have _suppress_initial,
-  // so we skip the initial documents manually.
-  let initializing = true;
-
-  // Build callbacks that only notify the dependency if not initializing.
-  const callback = {};
-  ['added', 'changed', 'removed', 'addedBefore', 'movedBefore'].forEach(
-    (fnName) => {
-      if (changers[fnName]) {
-        callback[fnName] = () => {
-          if (!initializing) {
-            dependency.changed();
-          }
-        };
-      }
-    }
-  );
-
-  // Call observeChangesAsync with non-mutating callbacks so that the cursor stops
-  // when the Tracker computation is invalidated.
-  await this.observeChangesAsync(callback, { nonMutatingCallbacks: true });
-
-  initializing = false;
-};
-
-const originalObserveChangesAsync = MeteorCursor.prototype.observeChangesAsync;
-// Override observeChangesAsync so that when the cursor is reactive, it stops automatically
-// when the Tracker computation is invalidated.
-MeteorCursor.prototype.observeChangesAsync = async function (
-  callbacks,
-  options = {}
-) {
-  const handle = await originalObserveChangesAsync.call(
-    this,
-    callbacks,
-    options
-  );
-  if (Tracker.active && this._isReactive()) {
-    Tracker.onInvalidate(async () => {
-      await handle.stop();
-    });
-  }
-  return handle;
-};
-
-// Define two sets of callback groups based on the options of the cursor.
 const callbacksOrdered = {
   addedBefore: true,
   removed: true,
   changed: true,
   movedBefore: true,
 };
+const callbacksUnordered = { added: true, changed: true, removed: true };
 
-const callbacksUnordered = {
-  added: true,
-  changed: true,
-  removed: true,
+const MeteorCursor = Object.getPrototypeOf(
+  MongoInternals.defaultRemoteCollectionDriver().mongo.find()
+).constructor;
+
+MeteorCursor.prototype._isReactive = function () {
+  const options = this._cursorDescription.options || {};
+  return options.reactive !== undefined ? options.reactive : true;
 };
 
-// Wrap forEach, map, and fetch to add reactive dependency.
-['forEach', 'map', 'fetch'].forEach((method) => {
-  const originalMethod = MeteorCursor.prototype[method];
-  MeteorCursor.prototype[method] = function (...args) {
-    if (this._isReactive()) {
-      // Destructure sort and ordered from the cursor description options.
-      const { sort, ordered } = this._cursorDescription.options || {};
-      let callbacks;
-      if ('ordered' in (this._cursorDescription.options || {})) {
-        // if the 'ordered' property exists: if truthy, use the ordered callbacks
-        // otherwise use the unordered callbacks.
-        callbacks = ordered ? callbacksOrdered : callbacksUnordered;
-      } else {
-        // If no explicit ordered option is provided, choose based on sort.
-        callbacks = sort ? callbacksOrdered : callbacksUnordered;
-      }
-      this._depend(callbacks);
-    }
-    return originalMethod.apply(this, args);
-  };
-});
-
-['forEachAsync', 'mapAsync', 'fetchAsync'].forEach((method) => {
-  const originalMethod = MeteorCursor.prototype[method];
-  MeteorCursor.prototype[method] = async function (...args) {
-    if (this._isReactive()) {
-      // Destructure sort and ordered from the cursor description options.
-      const { sort, ordered } = this._cursorDescription.options || {};
-      let callbacks;
-      if ('ordered' in (this._cursorDescription.options || {})) {
-        // if the 'ordered' property exists: if truthy, use the ordered callbacks
-        // otherwise use the unordered callbacks.
-        callbacks = ordered ? callbacksOrdered : callbacksUnordered;
-      } else {
-        // If no explicit ordered option is provided, choose based on sort.
-        callbacks = sort ? callbacksOrdered : callbacksUnordered;
-      }
-      await this._depend(callbacks);
-    }
-    return originalMethod.apply(this, args);
-  };
-});
-
-// Override count so that it adds reactivity if needed.
-MeteorCursor.prototype.count = function (...args) {
-  if (this._isReactive()) {
-    this._depend({
-      added: true,
-      removed: true,
-    });
+const origFetchAsync = MeteorCursor.prototype.fetchAsync;
+MeteorCursor.prototype.fetchAsync = async function (...args) {
+  if (this._reactiveDependency) {
+    this._reactiveDependency.depend();
   }
-  return originalCount.apply(this, args);
+  return origFetchAsync.apply(this, args);
 };
 
-MeteorCursor.prototype.countAsync = async function (...args) {
-  if (this._isReactive()) {
-    await this._depend({
-      added: true,
-      removed: true,
-    });
+MeteorCursor.prototype._attachReactiveDependency = function (changers) {
+  const comp = AsyncTracker.currentComputation();
+  if (!comp) return Promise.resolve(null);
+
+  const dep =
+    this._reactiveDependency ||
+    (this._reactiveDependency = new AsyncTracker.Dependency());
+  dep.depend();
+
+  let initializing = true;
+  const cb = {};
+
+  ['added', 'changed', 'removed', 'addedBefore', 'movedBefore'].forEach(
+    (event) => {
+      if (changers[event]) {
+        cb[event] = () => {
+          if (!initializing) dep.changed();
+        };
+      }
+    }
+  );
+
+  const handlePromise = this.observeChangesAsync(cb, {
+    nonMutatingCallbacks: true,
+  });
+  handlePromise.then((handle) => {
+    initializing = false;
+    comp.onStop(() => handle.stop());
+  });
+
+  return handlePromise;
+};
+
+// 3) Wrap Collection.find() to cache cursors and re‐depend on fetchAsync
+const origFind = Mongo.Collection.prototype.find;
+Mongo.Collection.prototype.find = function (selector, options) {
+  const comp = AsyncTracker.currentComputation();
+  const cursor = origFind.call(this, selector, options);
+
+  if (!comp || !cursor._isReactive()) {
+    return cursor;
   }
-  return originalCountAsync.apply(this, args);
+
+  // Initialize per‐computation cache
+  if (!comp._cursorCache) {
+    comp._cursorCache = new Map();
+    comp.onInvalidate(() => comp._cursorCache.clear());
+  }
+
+  const key = JSON.stringify({ selector, options });
+  if (comp._cursorCache.has(key)) {
+    const entry = comp._cursorCache.get(key);
+    if (entry.cursor._reactiveDependency) {
+      entry.cursor._reactiveDependency.depend();
+    }
+    return entry.cursor;
+  }
+
+  // First time: attach reactivity
+  const { sort, ordered } = cursor._cursorDescription.options || {};
+  const cbSet =
+    'ordered' in (cursor._cursorDescription.options || {})
+      ? ordered
+        ? callbacksOrdered
+        : callbacksUnordered
+      : sort
+        ? callbacksOrdered
+        : callbacksUnordered;
+
+  cursor._attachReactiveDependency(cbSet);
+  cursor._hasReactiveDepAttached = true;
+
+  comp._cursorCache.set(key, { cursor, lastUsed: Date.now() });
+  return cursor;
 };
 
-// If the original 'exists' method exists, wrap it similarly.
+const originalExists = MeteorCursor.prototype.exists;
 if (originalExists) {
-  MeteorCursor.prototype.exists = async function (...args) {
-    if (this._isReactive()) {
-      await this._depend({
-        added: true,
-        removed: true,
-      });
+  MeteorCursor.prototype.exists = function (...args) {
+    if (this._isReactive() && !this._hasReactiveDepAttached) {
+      this._attachReactiveDependency({ added: true, removed: true });
+      this._hasReactiveDepAttached = true;
     }
     return originalExists.apply(this, args);
   };

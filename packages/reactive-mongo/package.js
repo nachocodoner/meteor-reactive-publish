@@ -18,7 +18,7 @@ Package.onUse(function (api) {
 });
 
 Package.onTest(function (api) {
-  api.use(['ecmascript', 'reactive-var']);
+  api.use(['ecmascript', 'reactive-var', 'insecure']);
   api.use(['tinytest', 'test-helpers']);
   api.use('reactive-mongo');
   api.mainModule('tests.js');

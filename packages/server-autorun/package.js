@@ -15,6 +15,7 @@ Package.onUse(function (api) {
   api.use(['ecmascript', 'tracker']);
 
   api.export('Tracker');
+  api.export('AsyncTracker');
 
   api.mainModule('client.js', 'client');
   api.mainModule('server.js', 'server');

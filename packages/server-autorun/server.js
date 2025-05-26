@@ -1,337 +1,134 @@
-import { Tracker } from 'meteor/tracker';
 import { AsyncLocalStorage } from 'async_hooks';
+const asyncLocalStorage = new AsyncLocalStorage();
 
-// --- Tracker Context via AsyncLocalStorage ---
-const trackerStorage = new AsyncLocalStorage();
-
-function getTrackerInstance() {
-  let instance = trackerStorage.getStore();
-  if (!instance) {
-    instance = new TrackerInstance();
-    trackerStorage.enterWith(instance);
-  }
-  return instance;
-}
-
-class TrackerInstance {
+class AsyncTrackerDependency {
   constructor() {
-    this.active = false;
-    this.currentComputation = null;
-    this.pendingComputations = [];
-    // Our flush callback queue (for afterFlush callbacks).
-    this.flushCallbacks = [];
-    // New: a promise chain that serializes flush cycles.
-    this.flushQueue = Promise.resolve();
-    this.willFlush = false;
-    this.inFlush = false;
-    this.inCompute = false;
+    this._dependents = new Set();
+    this._attached = new WeakSet();
   }
 
-  setCurrentComputation(comp) {
-    this.currentComputation = comp;
-    this.active = !!comp;
-  }
-
-  _deferAndTransfer(func) {
-    Meteor.defer(() => {
-      trackerStorage.run(this, func);
-    });
-  }
-
-  // Modified requireFlush returns a promise that resolves when the flush cycle finishes.
-  requireFlush() {
-    if (this.willFlush) return this.flushQueue;
-    this.willFlush = true;
-    this.flushQueue = this.flushQueue.then(() => {
-      return new Promise((resolve) => {
-        this._runFlush(resolve);
+  depend() {
+    const comp = AsyncTracker.currentComputation();
+    if (!comp) return false;
+    if (!this._dependents.has(comp)) {
+      this._dependents.add(comp);
+    }
+    if (!this._attached.has(comp)) {
+      this._attached.add(comp);
+      comp.onInvalidate(() => {
+        this._dependents.delete(comp);
+        this._attached.delete(comp);
       });
-    });
-    return this.flushQueue;
+    }
+    return true;
   }
 
-  // _runFlush is modified to accept a callback and then call it when finished.
-  _runFlush(callback) {
-    // Do not allow flush if we're inside a computation.
-    if (this.inCompute) {
-      throw new Error("Can't call Tracker.flush inside an autorun");
+  changed() {
+    for (const comp of this._dependents) {
+      Meteor.defer(() => comp.invalidate());
     }
-    if (this.inFlush) {
-      callback();
-      return;
-    }
-    this.inFlush = true;
-    try {
-      // Process any pending computations.
-      while (this.pendingComputations.length) {
-        const comp = this.pendingComputations.shift();
-        comp._recomputeSync();
-        if (comp._needsRecompute()) {
-          this.pendingComputations.unshift(comp);
-        }
-      }
-      // Then process all flush callbacks (FIFO order).
-      const cbs = this.flushCallbacks.splice(0, this.flushCallbacks.length);
-      cbs.forEach((cb) => {
-        try {
-          cb();
-        } catch (e) {
-          console.error('Exception in Tracker afterFlush callback:', e);
-        }
-      });
-    } finally {
-      this.inFlush = false;
-      this.willFlush = false;
-      if (this.pendingComputations.length || this.flushCallbacks.length) {
-        Meteor.setTimeout(() => this.requireFlush(), 10);
-      }
-    }
-    callback();
   }
 }
 
-const privateObject = {}; // Restricts direct instantiation of Tracker.Computation
-
-// --- Tracker API Methods ---
-Tracker.flush = function (options) {
-  // Return the promise that resolves when the flush cycle finishes.
-  return getTrackerInstance().requireFlush();
-};
-
-Tracker.autorun = function (func, options) {
-  if (typeof func !== 'function') {
-    throw new Error('Tracker.autorun requires a function argument');
-  }
-  const comp = new Tracker.Computation(
-    func,
-    Tracker.currentComputation,
-    options && options.onError,
-    privateObject
-  );
-  if (Tracker.active) {
-    Tracker.onInvalidate(() => comp.stop());
-  }
-  return comp;
-};
-
-Tracker.nonreactive = function (f) {
-  const inst = getTrackerInstance();
-  const previous = inst.currentComputation;
-  inst.setCurrentComputation(null);
-  try {
-    return f();
-  } finally {
-    inst.setCurrentComputation(previous);
-  }
-};
-
-Tracker.afterFlush = function (f) {
-  const inst = getTrackerInstance();
-  inst.flushCallbacks.push(f);
-  inst.requireFlush();
-};
-
-Tracker.onInvalidate = function (f) {
-  if (!Tracker.active) {
-    throw new Error('Tracker.onInvalidate requires a currentComputation');
-  }
-  Tracker.currentComputation.onInvalidate(f);
-};
-
-Object.defineProperties(Tracker, {
-  currentComputation: {
-    get() {
-      return getTrackerInstance().currentComputation;
-    },
-  },
-  active: {
-    get() {
-      return getTrackerInstance().active;
-    },
-  },
-});
-
-// --- Tracker.Computation Implementation ---
-Tracker.Computation = class Computation {
-  constructor(func, _parent, _onError, _private) {
-    if (_private !== privateObject) {
-      throw new Error(
-        'Tracker.Computation constructor is private; use Tracker.autorun'
-      );
-    }
+class AsyncTrackerComputation {
+  constructor(asyncFunc, options = {}) {
+    this.asyncFunc = asyncFunc;
+    this.options = options;
     this.stopped = false;
     this.invalidated = false;
-    this.firstRun = true;
-    this._id = Date.now(); // or use an incrementing id
-    this._onInvalidateCallbacks = [];
-    this._onStopCallbacks = [];
+    this._running = false;
+
     this._beforeRunCallbacks = [];
     this._afterRunCallbacks = [];
-    this._recomputing = false;
-    this._trackerInstance = getTrackerInstance();
 
-    const onException = (error) => {
-      if (this.firstRun) throw error;
-      if (_onError) _onError(error);
-      else console.error('Exception from Tracker recompute:', error);
-    };
+    this._onInvalidateCallbacks = [];
+    this._onStopCallbacks = [];
+    this._cursorCache = new Map();
 
-    // Bind the user function to Meteor's environment.
-    this._func = Meteor.bindEnvironment(func, onException, this);
+    this._run();
+  }
 
-    let errored = true;
+  beforeRun(fn) {
+    if (typeof fn === 'function') {
+      this._beforeRunCallbacks.push(fn);
+    }
+  }
+
+  afterRun(fn) {
+    if (typeof fn === 'function') {
+      this._afterRunCallbacks.push(fn);
+    }
+  }
+
+  async _run() {
+    if (this.stopped) return;
+
+    this._beforeRunCallbacks.forEach((fn) => {
+      try {
+        fn(this);
+      } catch (e) {
+        console.error('beforeRun error', e);
+      }
+    });
+
+    this.invalidated = false;
+    this._running = true;
+
     try {
-      // Synchronously perform the initial computation so dependencies register.
-      this._computeSync();
-      errored = false;
+      await asyncLocalStorage.run(this, () => this.asyncFunc(this));
+    } catch (err) {
+      if (this.options.onError) this.options.onError(err);
+      else console.error('AsyncTracker computation error:', err);
     } finally {
-      this.firstRun = false;
-      if (errored) this.stop();
+      this._running = false;
     }
-  }
 
-  onInvalidate(f) {
-    if (typeof f !== 'function')
-      throw new Error('onInvalidate requires a function');
-    if (this.invalidated) {
-      Tracker.nonreactive(() => f(this));
-    } else {
-      this._onInvalidateCallbacks.push(f);
-    }
-  }
-
-  onStop(f) {
-    if (typeof f !== 'function') throw new Error('onStop requires a function');
-    if (this.stopped) {
-      Tracker.nonreactive(() => f(this));
-    } else {
-      this._onStopCallbacks.push(f);
-    }
-  }
-
-  beforeRun(f) {
-    if (typeof f !== 'function')
-      throw new Error('beforeRun requires a function');
-    this._beforeRunCallbacks.push(f);
-  }
-
-  afterRun(f) {
-    if (typeof f !== 'function')
-      throw new Error('afterRun requires a function');
-    this._afterRunCallbacks.push(f);
-  }
-
-  invalidate() {
-    if (!this.invalidated) {
-      if (!this._recomputing && !this.stopped) {
-        this._trackerInstance.requireFlush();
-        this._trackerInstance.pendingComputations.push(this);
+    this._afterRunCallbacks.forEach((fn) => {
+      try {
+        fn(this);
+      } catch (e) {
+        console.error('afterRun error', e);
       }
-      this.invalidated = true;
-      for (const callback of this._onInvalidateCallbacks) {
-        Tracker.nonreactive(() => callback(this));
-      }
-      this._onInvalidateCallbacks = [];
+    });
+
+    if (this.invalidated && !this.stopped) {
+      await this._run();
+    }
+  }
+
+  async invalidate() {
+    if (this.stopped) return;
+    this.invalidated = true;
+    this._onInvalidateCallbacks.forEach((fn) => fn(this));
+    if (!this._running) {
+      await this._run();
+    }
+  }
+
+  onInvalidate(fn) {
+    if (typeof fn === 'function') {
+      this._onInvalidateCallbacks.push(fn);
+    }
+  }
+
+  onStop(fn) {
+    if (typeof fn === 'function') {
+      this._onStopCallbacks.push(fn);
     }
   }
 
   stop() {
     if (this.stopped) return;
     this.stopped = true;
-    this.invalidate();
-    while (this._onStopCallbacks.length) {
-      const callback = this._onStopCallbacks.shift();
-      Tracker.nonreactive(() => callback(this));
-    }
+    this._cursorCache.clear();
+    this._onStopCallbacks.forEach((fn) => fn(this));
   }
+}
 
-  // Synchronous run-inside helper.
-  _runInsideSync(func) {
-    const inst = this._trackerInstance;
-    const previous = inst.currentComputation;
-    inst.setCurrentComputation(this);
-    const prevInCompute = inst.inCompute;
-    inst.inCompute = true;
-    try {
-      return func(this);
-    } finally {
-      inst.setCurrentComputation(previous);
-      inst.inCompute = prevInCompute;
-    }
-  }
-
-  _computeSync() {
-    this.invalidated = false;
-    return this._runInsideSync(() => {
-      while (this._beforeRunCallbacks.length) {
-        const callback = this._beforeRunCallbacks.shift();
-        Tracker.nonreactive(() => callback(this));
-      }
-      const result = this._func.call(null, this);
-      while (this._afterRunCallbacks.length) {
-        const callback = this._afterRunCallbacks.shift();
-        Tracker.nonreactive(() => callback(this));
-      }
-      return result;
-    });
-  }
-
-  _needsRecompute() {
-    return this.invalidated && !this.stopped;
-  }
-
-  _recomputeSync() {
-    if (this._recomputing) throw new Error('Already recomputing');
-    this._recomputing = true;
-    try {
-      if (this._needsRecompute()) {
-        this._computeSync();
-      }
-    } finally {
-      this._recomputing = false;
-    }
-  }
-
-  flush() {
-    if (this._recomputing) return;
-    return this._recomputeSync();
-  }
-
-  run() {
-    this.invalidate();
-    return this.flush();
-  }
+const AsyncTracker = {
+  autorun: (f, opts) => new AsyncTrackerComputation(f, opts),
+  currentComputation: () => asyncLocalStorage.getStore(),
+  Dependency: AsyncTrackerDependency,
 };
 
-Tracker.Dependency = class Dependency {
-  constructor() {
-    this._dependentsById = {};
-  }
-  depend(computation) {
-    if (!computation) {
-      if (!Tracker.active) return false;
-      computation = Tracker.currentComputation;
-    }
-    const id = computation._id;
-    if (!(id in this._dependentsById)) {
-      this._dependentsById[id] = computation;
-      computation.onInvalidate(() => {
-        delete this._dependentsById[id];
-      });
-      return true;
-    }
-    return false;
-  }
-  changed() {
-    for (const id in this._dependentsById) {
-      if (Object.prototype.hasOwnProperty.call(this._dependentsById, id)) {
-        this._dependentsById[id].invalidate();
-      }
-    }
-  }
-  hasDependents() {
-    return Object.keys(this._dependentsById).length > 0;
-  }
-};
-
-export { Tracker };
+export { AsyncTracker };
