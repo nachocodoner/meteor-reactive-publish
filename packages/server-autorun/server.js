@@ -123,6 +123,17 @@ class AsyncTrackerComputation {
     this._cursorCache.clear();
     this._onStopCallbacks.forEach((fn) => fn(this));
   }
+
+  async flush() {
+    if (this._running) return;
+
+    await this._run();
+  }
+
+  async run() {
+    await this.invalidate();
+    await this.flush();
+  }
 }
 
 const AsyncTracker = {

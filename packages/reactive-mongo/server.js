@@ -112,3 +112,14 @@ if (originalExists) {
     return originalExists.apply(this, args);
   };
 }
+
+const origFindOneAsync = Mongo.Collection.prototype.findOneAsync;
+Mongo.Collection.prototype.findOneAsync = async function (selector, options) {
+  const comp = AsyncTracker.currentComputation();
+  if (!comp) {
+    return origFindOneAsync.call(this, selector, options);
+  }
+  // Create a cursor with the same selector and options
+  this.find(selector, options);
+  return origFindOneAsync.call(this, selector, options);
+};

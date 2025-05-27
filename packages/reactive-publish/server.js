@@ -1,6 +1,7 @@
-import { Tracker } from 'meteor/tracker';
+import { AsyncTracker } from 'meteor/server-autorun';
 import { LocalCollection } from 'meteor/minimongo';
 import { MongoInternals } from 'meteor/mongo';
+import { MongoConnection } from 'meteor/mongo/mongo_connection';
 const { AsyncLocalStorage } = require('async_hooks');
 const publishContextStore = new AsyncLocalStorage();
 
@@ -91,8 +92,9 @@ Meteor._ensure =
 // In Meteor 3 with async publish functions there is no Fiber.
 // So we simply wrap the callbacks if Tracker.active without trying to “inject” a computation.
 function wrapCallbacks(callbacks, initializingReference) {
-  if (Tracker.active) {
-    const currentComputation = Tracker.currentComputation;
+  let prevPublishComputation;
+  const currentComputation = AsyncTracker.currentComputation();
+  if (currentComputation) {
     // Shallow clone the callbacks so we can override specific ones.
     callbacks = Object.assign({}, callbacks);
     const namesToWrap = [
@@ -107,15 +109,32 @@ function wrapCallbacks(callbacks, initializingReference) {
       if (callback && typeof callback === 'function') {
         callbacks[callbackName] = Meteor.bindEnvironment((...args) => {
           if (initializingReference.initializing) {
-            const store = publishContextStore.getStore();
-            // If you still need to “simulate” setting the computation,
-            // you could run this inside a context that has been entered.
             publishContextStore.enterWith({
               publishComputation: currentComputation,
             });
           }
           callback(...args);
         });
+        // callbacks[callbackName] = Meteor.bindEnvironment((...args) => {
+        //   if (initializingReference.initializing) {
+        //     prevPublishComputation =
+        //       publishContextStore.getStore()?.publishComputation;
+        //     // If you still need to “simulate” setting the computation,
+        //     // you could run this inside a context that has been entered.
+        //     publishContextStore.enterWith({
+        //       publishComputation: currentComputation,
+        //     });
+        //     try {
+        //       callback(...args);
+        //     } finally {
+        //       publishContextStore.enterWith({
+        //         publishComputation: prevPublishComputation,
+        //       });
+        //     }
+        //   } else {
+        //     callback(...args);
+        //   }
+        // });
       }
     });
   }
@@ -125,8 +144,8 @@ function wrapCallbacks(callbacks, initializingReference) {
 // --- Wrap the observeChanges functions ---
 
 // Override the low-level observeChanges to wrap its callbacks.
-const originalObserveChanges = MongoInternals.Connection._observeChanges;
-MongoInternals.Connection._observeChanges = function (
+const originalObserveChanges = MongoConnection.prototype._observeChanges;
+MongoConnection.prototype._observeChanges = async function (
   cursorDescription,
   ordered,
   callbacks,
@@ -134,7 +153,7 @@ MongoInternals.Connection._observeChanges = function (
 ) {
   const initRef = { initializing: true };
   callbacks = wrapCallbacks(callbacks, initRef);
-  const handle = originalObserveChanges.call(
+  const handle = await originalObserveChanges.call(
     this,
     cursorDescription,
     ordered,
@@ -150,6 +169,7 @@ const originalLocalCollectionCursorObserveChanges =
   LocalCollection.Cursor.observeChanges;
 LocalCollection.Cursor.observeChanges = function (callbacks, options = {}) {
   const initRef = { initializing: true };
+  console.log('=>(server.js:152) initRef', initRef);
   callbacks = wrapCallbacks(callbacks, initRef);
   const handle = originalLocalCollectionCursorObserveChanges.call(
     this,
@@ -162,7 +182,7 @@ LocalCollection.Cursor.observeChanges = function (callbacks, options = {}) {
 
 const originalObserveChangesAsync = MeteorCursor.prototype.observeChangesAsync;
 // Override observeChangesAsync so that when the cursor is reactive, it stops automatically
-// when the Tracker computation is invalidated.
+// when the AsyncTracker computation is invalidated.
 MeteorCursor.prototype.observeChangesAsync = async function (
   callbacks,
   options = {}
@@ -225,11 +245,12 @@ export const extendPublish = (name, publishFunction, options) => {
     const allCollectionNames = {};
 
     // Provide a helper to get the current computation.
-    // In Meteor 3, if there is no Tracker.active, we no longer have access to Fiber;
-    // so we simply return null.
+    // In Meteor 3, we use AsyncTracker instead of Tracker.
+    // so we simply return null if no active computation.
     publish._currentComputation = function () {
-      if (Tracker.active) {
-        return Tracker.currentComputation;
+      const currentComputation = AsyncTracker.currentComputation();
+      if (currentComputation) {
+        return currentComputation;
       } else {
         // Retrieve the stored computation from AsyncLocalStorage.
         const store = publishContextStore.getStore();
@@ -291,13 +312,15 @@ export const extendPublish = (name, publishFunction, options) => {
             });
           });
 
+          //TODO ensure beforerun is called
           computation.beforeRun(() => {
             oldDocuments[computation._id] = documents[computation._id] || {};
             documents[computation._id] = {};
           });
           computation._publishAfterRunSet = false;
         });
-        computation._trackerInstance.requireFlush();
+
+        computation.flush();
       }
     };
 
@@ -312,6 +335,7 @@ export const extendPublish = (name, publishFunction, options) => {
         Meteor._ensure(documents, currentComputation._id, collectionName)[
           stringId
         ] = true;
+        // console.log('=>(server.js:371) documents', name, documents);
       }
 
       // If the document is already published then call "changed" to send an update.
@@ -358,7 +382,7 @@ export const extendPublish = (name, publishFunction, options) => {
 
     const handles = [];
     publish.autorun = async function (runFunc) {
-      const handle = Tracker.autorun(async function (computation) {
+      const handle = AsyncTracker.autorun(async function (computation) {
         publishContextStore.enterWith({
           name,
           publishComputation: computation,
@@ -396,7 +420,11 @@ export const extendPublish = (name, publishFunction, options) => {
           return;
         }
 
-        if (result instanceof Tracker.Computation) {
+        if (
+          result &&
+          typeof result.stop === 'function' &&
+          typeof result.onInvalidate === 'function'
+        ) {
           if (publish._isDeactivated && publish._isDeactivated()) {
             result.stop();
           } else {
@@ -435,7 +463,15 @@ export const extendPublish = (name, publishFunction, options) => {
     if (!checkNames(publish, allCollectionNames, '', collectionNames)) {
       return;
     }
-    if (result instanceof Tracker.Computation) {
+    if (
+      result &&
+      typeof result.stop === 'function' &&
+      typeof result.onInvalidate === 'function'
+    ) {
+      // publishContextStore.enterWith({
+      //   name,
+      //   publishComputation: result,
+      // });
       if (publish._isDeactivated && publish._isDeactivated()) {
         result.stop();
       } else {
