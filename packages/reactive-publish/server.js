@@ -2,7 +2,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
 import { LocalCollection } from 'meteor/minimongo';
 import { MongoInternals } from 'meteor/mongo';
 import { MongoConnection } from 'meteor/mongo/mongo_connection';
-const { AsyncLocalStorage } = require('async_hooks');
+import { AsyncLocalStorage } from 'async_hooks';
 const publishContextStore = new AsyncLocalStorage();
 
 // Get a reference to the MeteorCursor constructor.
@@ -237,6 +237,7 @@ export const wrapPublish = (newPublishArguments) => {
 export const extendPublish = (name, publishFunction, options) => {
   // Declare the new publish function as async so that it can await asynchronous work.
   async function newPublishFunction(...args) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     const publish = this;
 
     // These objects hold state per computation.
