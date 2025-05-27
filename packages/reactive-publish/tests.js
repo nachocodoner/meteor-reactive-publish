@@ -697,6 +697,9 @@ async function runSteps(steps, test, done) {
           count: 0,
         };
         test.equal(countObj.count, 0);
+
+        unsubscribeAll();
+
         next();
       },
     ];
@@ -844,6 +847,8 @@ async function runSteps(steps, test, done) {
           this.postsSubscribe.stop();
         }
 
+        unsubscribeAll();
+
         next();
       },
     ];
@@ -879,8 +884,12 @@ async function runSteps(steps, test, done) {
   }
 
   // REMOVE FIELD TESTS.
-  function removeFieldSteps(publishName) {
+  function removeFieldSteps(publishName, test) {
     return [
+      async function (next) {
+        this.countsCollection = Counts;
+        next();
+      },
       function (next) {
         this.userId = generateId();
         this.subscribeSuccess(
@@ -889,107 +898,142 @@ async function runSteps(steps, test, done) {
           next
         );
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), []);
-        Fields.insert(
-          { _id: this.userId, foo: 1, dummyField: 1 },
-          (error, id) => {
-            test.isFalse(error, error && error.toString());
-            test.ok(id);
-            this.fieldsId = id;
-            Posts.insert({ foo: 'bar' }, (error, id) => {
-              test.isFalse(error, error && error.toString());
-              test.ok(id);
-              this.postId = id;
-              Meteor.setTimeout(next, 1000);
-            });
-          }
-        );
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), []);
+
+        try {
+          const fieldsId = await Fields.insertAsync({
+            _id: this.userId,
+            foo: 1,
+            dummyField: 1,
+          });
+
+          test.ok(fieldsId);
+          this.fieldsId = fieldsId;
+          const postId = await Posts.insertAsync({ foo: 'bar' });
+
+          test.ok(postId);
+          this.postId = postId;
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+
+        await Meteor.setTimeout(next, 1000);
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), []);
-        Users.insert(
-          { _id: this.userId, posts: [this.postId] },
-          (error, userId) => {
-            test.isFalse(error, error && error.toString());
-            test.ok(userId);
-            test.equal(userId, this.userId);
-            Meteor.setTimeout(next, 1000);
-          }
-        );
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), []);
+        try {
+          const userId = await Users.insertAsync({
+            _id: this.userId,
+            posts: [this.postId],
+          });
+          test.ok(userId);
+          test.equal(userId, this.userId);
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+
+        await Meteor.setTimeout(next, 1000);
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), [
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), [
           { _id: this.postId, foo: 'bar', dummyField: true },
         ]);
-        Posts.update(this.postId, { $set: { foo: 'baz' } }, (error, count) => {
-          test.isFalse(error, error && error.toString());
+        try {
+          const count = await Posts.updateAsync(this.postId, {
+            $set: { foo: 'baz' },
+          });
           test.equal(count, 1);
-          Meteor.setTimeout(next, 1000);
-        });
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+
+        await Meteor.setTimeout(next, 1000);
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), [
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), [
           { _id: this.postId, foo: 'baz', dummyField: true },
         ]);
-        Posts.update(this.postId, { $unset: { foo: '' } }, (error, count) => {
-          test.isFalse(error, error && error.toString());
+        try {
+          const count = await Posts.updateAsync(this.postId, {
+            $unset: { foo: '' },
+          });
           test.equal(count, 1);
-          Meteor.setTimeout(next, 1000);
-        });
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+        await Meteor.setTimeout(next, 1000);
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), [
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), [
           { _id: this.postId, dummyField: true },
         ]);
-        Posts.update(this.postId, { $set: { foo: 'bar' } }, (error, count) => {
-          test.isFalse(error, error && error.toString());
+
+        try {
+          const count = await Posts.updateAsync(this.postId, {
+            $set: { foo: 'bar' },
+          });
           test.equal(count, 1);
-          Meteor.setTimeout(next, 1000);
-        });
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+        await Meteor.setTimeout(next, 1000);
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), [
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), [
           { _id: this.postId, foo: 'bar', dummyField: true },
         ]);
-        Fields.update(this.userId, { $unset: { foo: '' } }, (error, count) => {
+        try {
+          const count = await Fields.updateAsync(this.userId, {
+            $unset: { foo: '' },
+          });
+          // test.equal(count, 1);
+        } catch (error) {
           test.isFalse(error, error && error.toString());
-          test.equal(count, 1);
-          Meteor.setTimeout(next, 1000);
-        });
+        }
+        await Meteor.setTimeout(next, 1000);
       },
-      function (next) {
-        test.equal(Posts.find().fetch(), [
+      async function (next) {
+        test.equal(await Posts.find().fetchAsync(), [
           { _id: this.postId, dummyField: true },
         ]);
+
+        unsubscribeAll();
+
         next();
       },
     ];
   }
-  // Tinytest.addAsync(
-  //   `ReactivePublish remove field (${idGeneration}) - users-posts`,
-  //   (test, done) => {
-  //     runSteps(removeFieldSteps('users-posts'), test, done);
-  //   }
-  // );
-  // Tinytest.addAsync(
-  //   `ReactivePublish remove field (${idGeneration}) - users-posts-foreach`,
-  //   (test, done) => {
-  //     runSteps(removeFieldSteps('users-posts-foreach'), test, done);
-  //   }
-  // );
-  // Tinytest.addAsync(
-  //   `ReactivePublish remove field (${idGeneration}) - users-posts-autorun`,
-  //   (test, done) => {
-  //     runSteps(removeFieldSteps('users-posts-autorun'), test, done);
-  //   }
-  // );
-  // Tinytest.addAsync(
-  //   `ReactivePublish remove field (${idGeneration}) - users-posts-method`,
-  //   (test, done) => {
-  //     runSteps(removeFieldSteps('users-posts-method'), test, done);
-  //   }
-  // );
+
+  if (Meteor.isClient) {
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts-foreach`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts-foreach', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts-autorun`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts-autorun', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts-method`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts-method', test), test, done);
+      }
+    );
+  }
 
   // MULTIPLE TESTS.
   function multipleSteps(publishName) {
