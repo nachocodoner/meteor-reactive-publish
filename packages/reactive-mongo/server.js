@@ -18,22 +18,32 @@ MeteorCursor.prototype._isReactive = function () {
   return options.reactive !== undefined ? options.reactive : true;
 };
 
-const origFetchAsync = MeteorCursor.prototype.fetchAsync;
-MeteorCursor.prototype.fetchAsync = async function (...args) {
-  if (this._reactiveDependency) {
-    this._reactiveDependency.depend();
-  }
-  return origFetchAsync.apply(this, args);
-};
+const methods = ['fetch', 'fetchAsync', 'mapAsync', 'forEachAsync'];
+methods.forEach((method) => {
+  const orig = MeteorCursor.prototype[method];
+  MeteorCursor.prototype[method] = async function (...args) {
+    const opts = this._cursorDescription.options || {};
+    const hasOrdered = Object.prototype.hasOwnProperty.call(opts, 'ordered');
+    const useOrdered = hasOrdered ? opts.ordered : !!opts.sort;
+    this._attachReactiveDependency(
+      useOrdered ? callbacksOrdered : callbacksUnordered
+    );
+    return orig.apply(this, args);
+  };
+});
 
 MeteorCursor.prototype._attachReactiveDependency = function (changers) {
   const comp = AsyncTracker.currentComputation();
   if (!comp) return Promise.resolve(null);
 
-  const dep =
-    this._reactiveDependency ||
-    (this._reactiveDependency = new AsyncTracker.Dependency());
+  if (this._reactiveDependency) {
+    this._reactiveDependency.depend();
+    return Promise.resolve(null);
+  }
+
+  const dep = new AsyncTracker.Dependency();
   dep.depend();
+  this._reactiveDependency = dep;
 
   let initializing = true;
   const cb = {};
@@ -63,10 +73,8 @@ MeteorCursor.prototype._attachReactiveDependency = function (changers) {
 const origFind = Mongo.Collection.prototype.find;
 Mongo.Collection.prototype.find = function (selector, options) {
   const comp = AsyncTracker.currentComputation();
-  const cursor = origFind.call(this, selector, options);
-
-  if (!comp || !cursor._isReactive()) {
-    return cursor;
+  if (!comp) {
+    return origFind.call(this, selector, options);
   }
 
   // Initialize per‐computation cache
@@ -84,6 +92,7 @@ Mongo.Collection.prototype.find = function (selector, options) {
     return entry.cursor;
   }
 
+  const cursor = origFind.call(this, selector, options);
   // First time: attach reactivity
   const { sort, ordered } = cursor._cursorDescription.options || {};
   const cbSet =
@@ -112,14 +121,3 @@ if (originalExists) {
     return originalExists.apply(this, args);
   };
 }
-
-const origFindOneAsync = Mongo.Collection.prototype.findOneAsync;
-Mongo.Collection.prototype.findOneAsync = async function (selector, options) {
-  const comp = AsyncTracker.currentComputation();
-  if (!comp) {
-    return origFindOneAsync.call(this, selector, options);
-  }
-  // Create a cursor with the same selector and options
-  this.find(selector, options);
-  return origFindOneAsync.call(this, selector, options);
-};
