@@ -386,7 +386,6 @@ async function runSteps(steps, test, done) {
           });
           initializing = false;
           self.added(`Counts_${idGeneration}`, countId, { count });
-          console.log('--> (tests.js-Line: 389)\n count: ', user, count);
           self.ready();
         });
       }
@@ -577,7 +576,7 @@ async function runSteps(steps, test, done) {
           await Users.updateAsync(this.userId, {
             posts: this.shortPosts,
           });
-          await Meteor.setTimeout(next, 1000);
+          await new Promise((resolve) => Meteor.setTimeout(resolve, 1000));
           next();
         } catch (error) {
           test.isFalse(error, error && error.toString());
@@ -603,97 +602,89 @@ async function runSteps(steps, test, done) {
           (await this.countsCollection.findOneAsync(this.countId))) || {
           count: 0,
         };
-        console.log(
-          '--> (tests.js-Line: 613)\n this.shortPosts.length: ',
-          this.shortPosts.length
-        );
-        console.log(
-          '--> (tests.js-Line: 613)\n countObj.count: ',
-          countObj.count
-        );
 
         test.equal(countObj.count, this.shortPosts.length);
 
         try {
           await Users.updateAsync(this.userId, { posts: [] });
-          await Meteor.setTimeout(next, 1000);
+          await new Promise((resolve) => Meteor.setTimeout(resolve, 1000));
           next();
         } catch (error) {
           test.isFalse(error, error && error.toString());
           next();
         }
       },
-      // async function (next) {
-      //   const postIds = (await Posts.find().fetchAsync()).map((doc) => doc._id);
-      //   test.equal(postIds, []);
-      //
-      //   try {
-      //     await Users.updateAsync(this.userId, {
-      //       posts: this.posts,
-      //     });
-      //   } catch (error) {
-      //     test.isFalse(error, error && error.toString());
-      //   }
-      //
-      //   await Meteor.setTimeout(next, 1000);
-      // },
-      // async function (next) {
-      //   const posts = await Posts.find().fetchAsync();
-      //   posts.forEach((post) => {
-      //     test.ok(post.dummyField);
-      //   });
-      //
-      //   test.isTrue(
-      //     arraysHaveSameItems(
-      //       posts.map((doc) => doc._id),
-      //       this.posts
-      //     )
-      //   );
-      //
-      //   try {
-      //     const count = await Posts.removeAsync(this.posts[0]);
-      //     test.equal(count, 1);
-      //   } catch (error) {
-      //     test.isFalse(error, error && error.toString());
-      //   }
-      //
-      //   await Meteor.setTimeout(next, 6000);
-      // },
-      // async function (next) {
-      //   const posts = await Posts.find().fetchAsync();
-      //   posts.forEach((post) => {
-      //     test.ok(post.dummyField);
-      //   });
-      //
-      //   const postIds = posts.map((doc) => doc._id);
-      //   test.isTrue(arraysHaveSameItems(postIds, this.posts.slice(1)));
-      //
-      //   try {
-      //     await Users.removeAsync(this.userId);
-      //   } catch (error) {
-      //     test.isFalse(error, error && error.toString());
-      //   }
-      //
-      //   await Meteor.setTimeout(next, 1000);
-      //   next();
-      // },
-      // async function (next) {
-      //   const posts = await Posts.find().fetchAsync();
-      //   test.equal(
-      //     posts.map((doc) => doc._id),
-      //     []
-      //   );
-      //
-      //   const countObj = (this.countsCollection &&
-      //     (await this.countsCollection.findOneAsync(this.countId))) || {
-      //     count: 0,
-      //   };
-      //   test.equal(countObj.count, 0);
-      //
-      //   unsubscribeAll();
-      //
-      //   next();
-      // },
+      async function (next) {
+        const postIds = (await Posts.find().fetchAsync()).map((doc) => doc._id);
+        test.equal(postIds, []);
+
+        try {
+          await Users.updateAsync(this.userId, {
+            posts: this.posts,
+          });
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+
+        await Meteor.setTimeout(next, 1000);
+      },
+      async function (next) {
+        const posts = await Posts.find().fetchAsync();
+        posts.forEach((post) => {
+          test.ok(post.dummyField);
+        });
+
+        test.isTrue(
+          arraysHaveSameItems(
+            posts.map((doc) => doc._id),
+            this.posts
+          )
+        );
+
+        try {
+          const count = await Posts.removeAsync(this.posts[0]);
+          test.equal(count, 1);
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+
+        await new Promise((resolve) => Meteor.setTimeout(resolve, 1000));
+        next();
+      },
+      async function (next) {
+        const posts = await Posts.find().fetchAsync();
+        posts.forEach((post) => {
+          test.ok(post.dummyField);
+        });
+
+        const postIds = posts.map((doc) => doc._id);
+        test.isTrue(arraysHaveSameItems(postIds, this.posts.slice(1)));
+
+        try {
+          await Users.removeAsync(this.userId);
+        } catch (error) {
+          test.isFalse(error, error && error.toString());
+        }
+
+        await Meteor.setTimeout(next, 1000);
+      },
+      async function (next) {
+        const posts = await Posts.find().fetchAsync();
+        test.equal(
+          posts.map((doc) => doc._id),
+          []
+        );
+
+        const countObj = (this.countsCollection &&
+          (await this.countsCollection.findOneAsync(this.countId))) || {
+          count: 0,
+        };
+        test.equal(countObj.count, 0);
+
+        unsubscribeAll();
+
+        next();
+      },
     ];
   }
 
@@ -705,26 +696,26 @@ async function runSteps(steps, test, done) {
       }
     );
 
-    // Tinytest.addAsync(
-    //   `ReactivePublish basic (${idGeneration}) - users-posts-foreach`,
-    //   (test, done) => {
-    //     runSteps(basicSteps('users-posts-foreach', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish basic (${idGeneration}) - users-posts-autorun`,
-    //   (test, done) => {
-    //     runSteps(basicSteps('users-posts-autorun', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish basic (${idGeneration}) - users-posts-method`,
-    //   (test, done) => {
-    //     runSteps(basicSteps('users-posts-method', test), test, done);
-    //   }
-    // );
+    Tinytest.addAsync(
+      `ReactivePublish basic (${idGeneration}) - users-posts-foreach`,
+      (test, done) => {
+        runSteps(basicSteps('users-posts-foreach', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish basic (${idGeneration}) - users-posts-autorun`,
+      (test, done) => {
+        runSteps(basicSteps('users-posts-autorun', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish basic (${idGeneration}) - users-posts-method`,
+      (test, done) => {
+        runSteps(basicSteps('users-posts-method', test), test, done);
+      }
+    );
   }
 
   // UNSUBSCRIBING TESTS.
@@ -846,32 +837,32 @@ async function runSteps(steps, test, done) {
   }
 
   if (Meteor.isClient) {
-    // Tinytest.addAsync(
-    //   `ReactivePublish unsubscribing (${idGeneration}) - users-posts`,
-    //   (test, done) => {
-    //     runSteps(unsubscribingSteps('users-posts', test), test, done);
-    //   }
-    // );
-    // Tinytest.addAsync(
-    //   `ReactivePublish unsubscribing (${idGeneration}) - users-posts-foreach`,
-    //   (test, done) => {
-    //     runSteps(unsubscribingSteps('users-posts-foreach', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish unsubscribing (${idGeneration}) - users-posts-autorun`,
-    //   (test, done) => {
-    //     runSteps(unsubscribingSteps('users-posts-autorun', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish unsubscribing (${idGeneration}) - users-posts-method`,
-    //   (test, done) => {
-    //     runSteps(unsubscribingSteps('users-posts-method', test), test, done);
-    //   }
-    // );
+    Tinytest.addAsync(
+      `ReactivePublish unsubscribing (${idGeneration}) - users-posts`,
+      (test, done) => {
+        runSteps(unsubscribingSteps('users-posts', test), test, done);
+      }
+    );
+    Tinytest.addAsync(
+      `ReactivePublish unsubscribing (${idGeneration}) - users-posts-foreach`,
+      (test, done) => {
+        runSteps(unsubscribingSteps('users-posts-foreach', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish unsubscribing (${idGeneration}) - users-posts-autorun`,
+      (test, done) => {
+        runSteps(unsubscribingSteps('users-posts-autorun', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish unsubscribing (${idGeneration}) - users-posts-method`,
+      (test, done) => {
+        runSteps(unsubscribingSteps('users-posts-method', test), test, done);
+      }
+    );
   }
 
   // REMOVE FIELD TESTS.
@@ -996,33 +987,33 @@ async function runSteps(steps, test, done) {
   }
 
   if (Meteor.isClient) {
-    // Tinytest.addAsync(
-    //   `ReactivePublish remove field (${idGeneration}) - users-posts`,
-    //   (test, done) => {
-    //     runSteps(removeFieldSteps('users-posts', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish remove field (${idGeneration}) - users-posts-foreach`,
-    //   (test, done) => {
-    //     runSteps(removeFieldSteps('users-posts-foreach', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish remove field (${idGeneration}) - users-posts-autorun`,
-    //   (test, done) => {
-    //     runSteps(removeFieldSteps('users-posts-autorun', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish remove field (${idGeneration}) - users-posts-method`,
-    //   (test, done) => {
-    //     runSteps(removeFieldSteps('users-posts-method', test), test, done);
-    //   }
-    // );
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts-foreach`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts-foreach', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts-autorun`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts-autorun', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish remove field (${idGeneration}) - users-posts-method`,
+      (test, done) => {
+        runSteps(removeFieldSteps('users-posts-method', test), test, done);
+      }
+    );
   }
 
   // MULTIPLE TESTS.
@@ -1198,23 +1189,23 @@ async function runSteps(steps, test, done) {
   }
 
   if (Meteor.isClient) {
-    // Tinytest.addAsync(
-    //   `ReactivePublish multiple (${idGeneration}) - users-posts-and-addresses`,
-    //   (test, done) => {
-    //     runSteps(multipleSteps('users-posts-and-addresses', test), test, done);
-    //   }
-    // );
-    //
-    // Tinytest.addAsync(
-    //   `ReactivePublish multiple (${idGeneration}) - users-posts-and-addresses-together`,
-    //   (test, done) => {
-    //     runSteps(
-    //       multipleSteps('users-posts-and-addresses-together', test),
-    //       test,
-    //       done
-    //     );
-    //   }
-    // );
+    Tinytest.addAsync(
+      `ReactivePublish multiple (${idGeneration}) - users-posts-and-addresses`,
+      (test, done) => {
+        runSteps(multipleSteps('users-posts-and-addresses', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish multiple (${idGeneration}) - users-posts-and-addresses-together`,
+      (test, done) => {
+        runSteps(
+          multipleSteps('users-posts-and-addresses-together', test),
+          test,
+          done
+        );
+      }
+    );
   }
 
   //
