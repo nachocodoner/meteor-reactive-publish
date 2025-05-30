@@ -3,20 +3,20 @@ const asyncLocalStorage = new AsyncLocalStorage();
 
 class AsyncTrackerDependency {
   constructor() {
-    this._dependents = new Set();
+    this._dependents = new Map();
     this._attached = new WeakSet();
   }
 
   depend() {
     const comp = AsyncTracker.currentComputation();
     if (!comp) return false;
-    if (!this._dependents.has(comp)) {
-      this._dependents.add(comp);
+    if (!this._dependents.has(comp._id)) {
+      this._dependents.set(comp._id, comp);
     }
     if (!this._attached.has(comp)) {
       this._attached.add(comp);
       comp.onInvalidate(() => {
-        this._dependents.delete(comp);
+        this._dependents.delete(comp._id);
         this._attached.delete(comp);
       });
     }
@@ -24,9 +24,14 @@ class AsyncTrackerDependency {
   }
 
   changed() {
-    for (const comp of this._dependents) {
+    for (const comp of this._dependents.values()) {
       Meteor.defer(() => comp.invalidate());
     }
+  }
+
+  hasDependents() {
+    for (var id in this._dependents) return true;
+    return false;
   }
 }
 
