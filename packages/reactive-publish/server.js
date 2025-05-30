@@ -213,6 +213,7 @@ export const extendPublish = (name, publishFunction, options) => {
     // so we simply return null if no active computation.
     publish._currentComputation = function () {
       const currentComputation = AsyncTracker.currentComputation();
+      if (currentComputation?._parent) return currentComputation._parent;
       if (currentComputation) {
         return currentComputation;
       } else {

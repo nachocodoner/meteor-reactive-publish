@@ -41,11 +41,14 @@ class AsyncTrackerComputation {
   constructor(asyncFunc, options = {}) {
     this._id = nextId++;
 
+    this.firstRun = true;
+
     this.asyncFunc = asyncFunc;
     this.options = options;
     this.stopped = false;
     this.invalidated = false;
     this._running = false;
+    this._parent = AsyncTracker.currentComputation();
 
     this._beforeRunCallbacks = [];
     this._afterRunCallbacks = [];
@@ -103,6 +106,8 @@ class AsyncTrackerComputation {
     if (this.invalidated && !this.stopped) {
       await this._run();
     }
+
+    this.firstRun = false;
   }
 
   async invalidate() {
