@@ -92,7 +92,6 @@ Meteor._ensure =
 // In Meteor 3 with async publish functions there is no Fiber.
 // So we simply wrap the callbacks if Tracker.active without trying to “inject” a computation.
 function wrapCallbacks(callbacks, initializingReference) {
-  let prevPublishComputation;
   const currentComputation = AsyncTracker.currentComputation();
   if (currentComputation) {
     // Shallow clone the callbacks so we can override specific ones.
@@ -115,26 +114,6 @@ function wrapCallbacks(callbacks, initializingReference) {
           }
           callback(...args);
         });
-        // callbacks[callbackName] = Meteor.bindEnvironment((...args) => {
-        //   if (initializingReference.initializing) {
-        //     prevPublishComputation =
-        //       publishContextStore.getStore()?.publishComputation;
-        //     // If you still need to “simulate” setting the computation,
-        //     // you could run this inside a context that has been entered.
-        //     publishContextStore.enterWith({
-        //       publishComputation: currentComputation,
-        //     });
-        //     try {
-        //       callback(...args);
-        //     } finally {
-        //       publishContextStore.enterWith({
-        //         publishComputation: prevPublishComputation,
-        //       });
-        //     }
-        //   } else {
-        //     callback(...args);
-        //   }
-        // });
       }
     });
   }
@@ -159,22 +138,6 @@ MongoConnection.prototype._observeChanges = async function (
     ordered,
     callbacks,
     nonMutatingCallbacks
-  );
-  initRef.initializing = false;
-  return handle;
-};
-
-// Similarly, override the LocalCollection.Cursor.observeChanges.
-const originalLocalCollectionCursorObserveChanges =
-  LocalCollection.Cursor.observeChanges;
-LocalCollection.Cursor.observeChanges = function (callbacks, options = {}) {
-  const initRef = { initializing: true };
-  console.log('=>(server.js:152) initRef', initRef);
-  callbacks = wrapCallbacks(callbacks, initRef);
-  const handle = originalLocalCollectionCursorObserveChanges.call(
-    this,
-    callbacks,
-    options
   );
   initRef.initializing = false;
   return handle;
@@ -313,7 +276,6 @@ export const extendPublish = (name, publishFunction, options) => {
             });
           });
 
-          //TODO ensure beforerun is called
           computation.beforeRun(() => {
             oldDocuments[computation._id] = documents[computation._id] || {};
             documents[computation._id] = {};
@@ -336,7 +298,6 @@ export const extendPublish = (name, publishFunction, options) => {
         Meteor._ensure(documents, currentComputation._id, collectionName)[
           stringId
         ] = true;
-        // console.log('=>(server.js:371) documents', name, documents);
       }
 
       // If the document is already published then call "changed" to send an update.
@@ -364,6 +325,7 @@ export const extendPublish = (name, publishFunction, options) => {
         iterateObjectOrMapKeys(dataByKey, (field) => {
           oldFields[field] = undefined;
         });
+
         // Combine oldFields and new fields.
         publish.changed(collectionName, id, Object.assign(oldFields, fields));
       } else {
@@ -434,7 +396,7 @@ export const extendPublish = (name, publishFunction, options) => {
         } else {
           if (!publish._isDeactivated || !publish._isDeactivated()) {
             if (publish._publishHandlerResult) {
-              publish._publishHandlerResult(result);
+              await publish._publishHandlerResult(result);
             }
           }
         }
@@ -469,10 +431,6 @@ export const extendPublish = (name, publishFunction, options) => {
       typeof result.stop === 'function' &&
       typeof result.onInvalidate === 'function'
     ) {
-      // publishContextStore.enterWith({
-      //   name,
-      //   publishComputation: result,
-      // });
       if (publish._isDeactivated && publish._isDeactivated()) {
         result.stop();
       } else {

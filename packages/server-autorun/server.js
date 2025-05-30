@@ -30,8 +30,12 @@ class AsyncTrackerDependency {
   }
 }
 
+var nextId = 1;
+
 class AsyncTrackerComputation {
   constructor(asyncFunc, options = {}) {
+    this._id = nextId++;
+
     this.asyncFunc = asyncFunc;
     this.options = options;
     this.stopped = false;

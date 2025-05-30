@@ -80,10 +80,28 @@ Mongo.Collection.prototype.find = function (selector, options) {
   // Initialize per‐computation cache
   if (!comp._cursorCache) {
     comp._cursorCache = new Map();
-    comp.onInvalidate(() => comp._cursorCache.clear());
+    comp.onStop(() => comp._cursorCache.clear());
   }
 
-  const key = JSON.stringify({ selector, options });
+  const collectionName = this?._name;
+  // Clear any existing cursors with the same selector but different options
+  // This ensures that when options change, we don't use the cached cursor
+  for (const [existingKey, entry] of comp._cursorCache.entries()) {
+    try {
+      const parsed = JSON.parse(existingKey);
+      if (
+        parsed.collectionName === collectionName &&
+        JSON.stringify(parsed.selector) === JSON.stringify(selector) &&
+        JSON.stringify(parsed.options) !== JSON.stringify(options)
+      ) {
+        comp._cursorCache.delete(existingKey);
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+  }
+
+  const key = JSON.stringify({ collectionName, selector, options });
   if (comp._cursorCache.has(key)) {
     const entry = comp._cursorCache.get(key);
     if (entry.cursor._reactiveDependency) {
@@ -107,7 +125,7 @@ Mongo.Collection.prototype.find = function (selector, options) {
   cursor._attachReactiveDependency(cbSet);
   cursor._hasReactiveDepAttached = true;
 
-  comp._cursorCache.set(key, { cursor, lastUsed: Date.now() });
+  comp._cursorCache.set(key, { cursor });
   return cursor;
 };
 

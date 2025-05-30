@@ -5,7 +5,6 @@ import { Mongo } from 'meteor/mongo';
 import { LocalCollection } from 'meteor/minimongo';
 import { Random } from 'meteor/random';
 import { AsyncTracker } from 'meteor/server-autorun';
-console.log('=>(tests.js:8) AsyncTracker', AsyncTracker);
 
 ['STRING' /*'MONGO'*/].forEach((idGeneration) => {
   // _id generator.
@@ -24,7 +23,7 @@ console.log('=>(tests.js:8) AsyncTracker', AsyncTracker);
 
   if (Meteor.isServer) {
     Tinytest.addAsync(
-      'reactive-mongo - single document operations',
+      'reactive-mongo - reactivity of single document operations (insert, update, remove)',
       async function (test) {
         await Test.find().forEachAsync(async (doc) => {
           await Test.removeAsync(doc._id);
@@ -124,26 +123,26 @@ console.log('=>(tests.js:8) AsyncTracker', AsyncTracker);
   }
 
   if (Meteor.isServer) {
+    // Create collections for users, posts, and fields
+    const Users = new Mongo.Collection(
+      `Users_reactive_mongo_tests_${idGeneration}`,
+      { idGeneration }
+    );
+    const Posts = new Mongo.Collection(
+      `Posts_reactive_mongo_tests_${idGeneration}`,
+      { idGeneration }
+    );
+    const Fields = new Mongo.Collection(
+      `Fields_reactive_mongo_tests_${idGeneration}`,
+      { idGeneration }
+    );
+
     Tinytest.addAsync(
-      'reactive-mongo - userId posts update',
+      'reactive-mongo - findOneAsync with field projection and related collections',
       async function (test) {
         await Test.find().forEachAsync(async (doc) => {
           await Test.removeAsync(doc._id);
         });
-
-        // Create collections for users, posts, and fields
-        const Users = new Mongo.Collection(
-          `Users_reactive_mongo_tests_${idGeneration}`,
-          { idGeneration }
-        );
-        const Posts = new Mongo.Collection(
-          `Posts_reactive_mongo_tests_${idGeneration}`,
-          { idGeneration }
-        );
-        const Fields = new Mongo.Collection(
-          `Fields_reactive_mongo_tests_${idGeneration}`,
-          { idGeneration }
-        );
 
         // Helper function to omit fields
         const omit = (obj, ...keys) => {
@@ -308,205 +307,484 @@ console.log('=>(tests.js:8) AsyncTracker', AsyncTracker);
       }
     );
   }
-});
 
-// Tinytest.addAsync('reactive-mongo - reactive stop', async function (test) {
-//   var coll = new LocalCollection();
-//   coll.insert({ _id: 'A' });
-//   coll.insert({ _id: 'B' });
-//   coll.insert({ _id: 'C' });
-//   await Meteor._sleepForMs(10);
-//
-//   var addBefore = function (str, newChar, before) {
-//     var idx = str.indexOf(before);
-//     if (idx === -1) return str + newChar;
-//     return str.slice(0, idx) + newChar + str.slice(idx);
-//   };
-//
-//   var x, y;
-//   var sortOrder = ReactiveVar(1);
-//
-//   var c = Tracker.autorun(function () {
-//     var q = coll.find({}, { sort: { _id: sortOrder.get() } });
-//     x = '';
-//     q.observe({
-//       addedAt: function (doc, atIndex, before) {
-//         x = addBefore(x, doc._id, before);
-//       },
-//     });
-//     y = '';
-//     q.observeChanges({
-//       addedBefore: function (id, fields, before) {
-//         y = addBefore(y, id, before);
-//       },
-//     });
-//   });
-//   await Meteor._sleepForMs(10);
-//
-//   test.equal(x, 'ABC');
-//   test.equal(y, 'ABC');
-//
-//   sortOrder.set(-1);
-//   test.equal(x, 'ABC');
-//   test.equal(y, 'ABC');
-//   await Tracker.flush();
-//
-//   await Meteor._sleepForMs(10);
-//   test.equal(x, 'CBA');
-//   test.equal(y, 'CBA');
-//
-//   coll.insert({ _id: 'D' });
-//   coll.insert({ _id: 'E' });
-//   await Meteor._sleepForMs(10);
-//   test.equal(x, 'EDCBA');
-//   test.equal(y, 'EDCBA');
-//
-//   c.stop();
-//   // stopping kills the observes immediately
-//   coll.insert({ _id: 'F' });
-//   await Meteor._sleepForMs(10);
-//   test.equal(x, 'EDCBA');
-//   test.equal(y, 'EDCBA');
-// });
-//
-// Tinytest.addAsync('reactive-mongo - fetch in observe', async function (test) {
-//   var coll = new LocalCollection();
-//   var callbackInvoked = false;
-//   var observe = coll.find().observeChanges({
-//     added: function (id, fields) {
-//       callbackInvoked = true;
-//       test.equal(fields, { foo: 1 });
-//       var doc = coll.findOne({ foo: 1 });
-//       test.isTrue(doc);
-//       test.equal(doc.foo, 1);
-//     },
-//   });
-//   test.isFalse(callbackInvoked);
-//   var computation = Tracker.autorun(async function (computation) {
-//     if (computation.firstRun) {
-//       coll.insert({ foo: 1 });
-//       await Meteor._sleepForMs(10);
-//     }
-//   });
-//   await Meteor._sleepForMs(10);
-//   test.isTrue(callbackInvoked);
-//   observe.stop();
-//   computation.stop();
-// });
-//
-// Tinytest.addAsync(
-//   'reactive-mongo - count on cursor with limit',
-//   async function (test) {
-//     var coll = new LocalCollection(),
-//       count;
-//
-//     coll.insert({ _id: 'A' });
-//     coll.insert({ _id: 'B' });
-//     coll.insert({ _id: 'C' });
-//     coll.insert({ _id: 'D' });
-//     await Meteor._sleepForMs(10);
-//
-//     var c = Tracker.autorun(function (c) {
-//       var cursor = coll.find(
-//         { _id: { $exists: true } },
-//         { sort: { _id: 1 }, limit: 3 }
-//       );
-//       count = cursor.count();
-//     });
-//
-//     test.equal(count, 3);
-//
-//     coll.remove('A'); // still 3 in the collection
-//     await Meteor._sleepForMs(10);
-//     await Tracker.flush();
-//     test.equal(count, 3);
-//
-//     coll.remove('B'); // expect count now 2
-//     await Meteor._sleepForMs(10);
-//     await Tracker.flush();
-//     test.equal(count, 2);
-//
-//     coll.insert({ _id: 'A' }); // now 3 again
-//     await Meteor._sleepForMs(10);
-//     await Tracker.flush();
-//     test.equal(count, 3);
-//
-//     coll.insert({ _id: 'B' }); // now 4 entries, but count should be 3 still
-//     await Meteor._sleepForMs(10);
-//     await Tracker.flush();
-//     test.equal(count, 3);
-//
-//     c.stop();
-//   }
-// );
-//
-// Tinytest.addAsync(
-//   'reactive-mongo - fine-grained reactivity of query with fields projection',
-//   async function (test) {
-//     var X = new LocalCollection();
-//     var id = 'asdf';
-//     X.insert({ _id: id, foo: { bar: 123 } });
-//
-//     var callbackInvoked = false;
-//     var computation = Tracker.autorun(function () {
-//       callbackInvoked = true;
-//       return X.findOne(id, { fields: { 'foo.bar': 1 } });
-//     });
-//     test.isTrue(callbackInvoked);
-//     callbackInvoked = false;
-//     X.update(id, { $set: { 'foo.baz': 456 } });
-//     await Meteor._sleepForMs(10);
-//     test.isFalse(callbackInvoked);
-//     X.update(id, { $set: { 'foo.bar': 124 } });
-//     await Meteor._sleepForMs(10);
-//     Tracker.flush();
-//     test.isTrue(callbackInvoked);
-//
-//     computation.stop();
-//   }
-// );
-//
-// Tinytest.addAsync(
-//   'reactive-mongo - testLocalQueries',
-//   async function (test, done) {
-//     const localCollection = new LocalCollection();
-//     const computations = [];
-//     const variable = new ReactiveVar(0);
-//     const runs = [];
-//
-//     computations.push(
-//       Tracker.autorun(() => {
-//         localCollection.insert({ variable: variable.get() });
-//       })
-//     );
-//
-//     computations.push(
-//       Tracker.autorun(async () => {
-//         const doc = localCollection.findOne({});
-//         runs.push(doc ? doc.variable : undefined);
-//         localCollection.remove({});
-//       })
-//     );
-//
-//     await Meteor._sleepForMs(10);
-//
-//     variable.set(1);
-//     await Tracker.flush();
-//
-//     await Meteor._sleepForMs(10);
-//
-//     variable.set(1);
-//     await Tracker.flush();
-//
-//     await Meteor._sleepForMs(10);
-//
-//     variable.set(2);
-//     await Tracker.flush();
-//
-//     await Meteor._sleepForMs(10);
-//
-//     test.equal(runs, [0, undefined, 1, undefined, 2, undefined]);
-//     computations.forEach((c) => c.stop());
-//     done();
-//   }
-// );
+  if (Meteor.isServer) {
+    Tinytest.addAsync(
+      'reactive-mongo - forEachAsync reactivity with document modifications',
+      async function (test) {
+        // Create a test collection
+        const TestForEach = new Mongo.Collection(
+          `Test_forEachAsync_${Random.id()}`,
+          { idGeneration }
+        );
+
+        // Clean up any existing documents
+        await TestForEach.find().forEachAsync(async (doc) => {
+          await TestForEach.removeAsync(doc._id);
+        });
+
+        // Variables to track test state
+        let rerunCount = 0;
+        let processedValues = [];
+        let handleObserver;
+        let computationIds = [];
+
+        // Create the autorun computation
+        const trackerComputation = AsyncTracker.autorun(async (computation) => {
+          rerunCount++;
+
+          // Store computation ID to verify it's the same computation rerunning
+          if (!computationIds.includes(computation._id)) {
+            computationIds.push(computation._id);
+          }
+
+          // Clear previous values
+          processedValues = [];
+
+          // Use forEachAsync to process documents
+          await TestForEach.find({}, { sort: { value: 1 } }).forEachAsync(
+            async (doc) => {
+              processedValues.push(doc.value);
+            }
+          );
+        });
+
+        // Set up onStop handler
+        trackerComputation.onStop(async () => {
+          if (handleObserver) await handleObserver.stop();
+        });
+
+        // Wait for initial run to complete
+        await Meteor._sleepForMs(100);
+
+        // Verify initial state
+        test.equal(rerunCount, 1, 'Computation should have run once initially');
+        test.equal(
+          processedValues.length,
+          0,
+          'No documents should be processed initially'
+        );
+        test.equal(computationIds.length, 1, 'Should be a single computation');
+
+        // Insert test documents
+        const docIds = [];
+        for (let i = 0; i < 5; i++) {
+          const docId = await TestForEach.insertAsync({
+            value: i,
+            squared: i * i,
+          });
+          docIds.push(docId);
+        }
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran and processed all documents
+        test.equal(
+          rerunCount,
+          5,
+          'Computation should have rerun after inserting documents'
+        );
+        test.equal(
+          processedValues,
+          [0, 1, 2, 3, 4],
+          'All documents should be processed in order'
+        );
+        test.equal(
+          computationIds.length,
+          1,
+          'Should still be the same computation'
+        );
+
+        // Update documents
+        for (const docId of docIds) {
+          await TestForEach.updateAsync(docId, { $set: { updated: true } });
+        }
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran
+        test.equal(
+          rerunCount,
+          9,
+          'Computation should have rerun after updating documents'
+        );
+        test.equal(
+          processedValues,
+          [0, 1, 2, 3, 4],
+          'All documents should still be processed in order'
+        );
+
+        // Remove some documents
+        await TestForEach.removeAsync(docIds[1]); // Remove document with value 1
+        await TestForEach.removeAsync(docIds[3]); // Remove document with value 3
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran and processed remaining documents
+        test.equal(
+          rerunCount,
+          11,
+          'Computation should have rerun after removing documents'
+        );
+        test.equal(
+          processedValues,
+          [0, 2, 4],
+          'Only remaining documents should be processed'
+        );
+
+        // Clean up
+        trackerComputation.stop();
+        await TestForEach.find().forEachAsync(async (doc) => {
+          await TestForEach.removeAsync(doc._id);
+        });
+      }
+    );
+
+    Tinytest.addAsync(
+      'reactive-mongo - mapAsync reactivity with document transformations',
+      async function (test) {
+        // Create a test collection
+        const TestMap = new Mongo.Collection(`Test_mapAsync_${Random.id()}`, {
+          idGeneration,
+        });
+
+        // Clean up any existing documents
+        await TestMap.find().forEachAsync(async (doc) => {
+          await TestMap.removeAsync(doc._id);
+        });
+
+        // Variables to track test state
+        let rerunCount = 0;
+        let transformedResults = [];
+        let handleObserver;
+        let computationIds = [];
+
+        // Create the autorun computation
+        const trackerComputation = AsyncTracker.autorun(async (computation) => {
+          rerunCount++;
+
+          // Store computation ID to verify it's the same computation rerunning
+          if (!computationIds.includes(computation._id)) {
+            computationIds.push(computation._id);
+          }
+
+          // Use mapAsync to transform documents
+          transformedResults = await TestMap.find(
+            {},
+            { sort: { value: 1 } }
+          ).mapAsync(async (doc) => {
+            // Square the value
+            return doc.value * doc.value;
+          });
+        });
+
+        // Set up onStop handler
+        trackerComputation.onStop(async () => {
+          if (handleObserver) await handleObserver.stop();
+        });
+
+        // Wait for initial run to complete
+        await Meteor._sleepForMs(100);
+
+        // Verify initial state
+        test.equal(rerunCount, 1, 'Computation should have run once initially');
+        test.equal(
+          transformedResults.length,
+          0,
+          'No documents should be transformed initially'
+        );
+        test.equal(computationIds.length, 1, 'Should be a single computation');
+
+        // Insert test documents
+        const docIds = [];
+        for (let i = 0; i < 5; i++) {
+          const docId = await TestMap.insertAsync({
+            value: i,
+            name: `Item ${i}`,
+          });
+          docIds.push(docId);
+        }
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran and transformed all documents
+        test.equal(
+          rerunCount,
+          5,
+          'Computation should have rerun after inserting documents'
+        );
+        test.equal(
+          transformedResults,
+          [0, 1, 4, 9, 16],
+          'All documents should be transformed correctly'
+        );
+        test.equal(
+          computationIds.length,
+          1,
+          'Should still be the same computation'
+        );
+
+        // Update documents to change the values
+        for (let i = 0; i < docIds.length; i++) {
+          await TestMap.updateAsync(docIds[i], { $set: { value: i * 2 } });
+        }
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran with updated values
+        test.equal(
+          rerunCount,
+          8,
+          'Computation should have rerun after updating documents'
+        );
+        test.equal(
+          transformedResults,
+          [0, 4, 16, 36, 64],
+          'Documents should be transformed with new values'
+        );
+
+        // Remove some documents
+        await TestMap.removeAsync(docIds[1]); // Remove document with value 2
+        await TestMap.removeAsync(docIds[3]); // Remove document with value 6
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran and transformed remaining documents
+        test.equal(
+          rerunCount,
+          10,
+          'Computation should have rerun after removing documents'
+        );
+        test.equal(
+          transformedResults,
+          [0, 16, 64],
+          'Only remaining documents should be transformed'
+        );
+
+        // Clean up
+        trackerComputation.stop();
+        await TestMap.find().forEachAsync(async (doc) => {
+          await TestMap.removeAsync(doc._id);
+        });
+      }
+    );
+
+    Tinytest.addAsync(
+      'reactive-mongo - fetchAsync reactivity with query options (sort, filter, limit, skip, projection)',
+      async function (test) {
+        // Create a test collection
+        const TestFetch = new Mongo.Collection(
+          `Test_fetchAsync_${Random.id()}`,
+          {
+            idGeneration,
+          }
+        );
+
+        // Clean up any existing documents
+        await TestFetch.find().forEachAsync(async (doc) => {
+          await TestFetch.removeAsync(doc._id);
+        });
+
+        // Variables to track test state
+        let rerunCount = 0;
+        let fetchedResults = [];
+        let handleObserver;
+        let computationIds = [];
+
+        // Query parameters
+        let queryFilter = {};
+        let sortOrder = { value: 1 };
+        let limitValue = null;
+        let skipValue = null;
+        let fieldsProjection = null;
+
+        // Create the autorun computation
+        const trackerComputation = AsyncTracker.autorun(async (computation) => {
+          rerunCount++;
+
+          // Store computation ID to verify it's the same computation rerunning
+          if (!computationIds.includes(computation._id)) {
+            computationIds.push(computation._id);
+          }
+
+          // Set up options for the query
+          const options = { sort: sortOrder };
+
+          if (limitValue !== null) {
+            options.limit = limitValue;
+          }
+
+          if (skipValue !== null) {
+            options.skip = skipValue;
+          }
+
+          if (fieldsProjection !== null) {
+            options.fields = fieldsProjection;
+          }
+
+          fetchedResults = await TestFetch.find(
+            queryFilter,
+            options
+          ).fetchAsync();
+        });
+
+        // Set up onStop handler
+        trackerComputation.onStop(async () => {
+          if (handleObserver) await handleObserver.stop();
+        });
+
+        // Wait for initial run to complete
+        await Meteor._sleepForMs(100);
+
+        // Verify initial state
+        test.equal(rerunCount, 1, 'Computation should have run once initially');
+        test.equal(
+          fetchedResults.length,
+          0,
+          'No documents should be fetched initially'
+        );
+        test.equal(computationIds.length, 1, 'Should be a single computation');
+
+        // Insert test documents
+        const docIds = [];
+        for (let i = 0; i < 5; i++) {
+          const docId = await TestFetch.insertAsync({
+            value: i,
+            name: `Item ${i}`,
+          });
+          docIds.push(docId);
+        }
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran and fetched all documents
+        test.equal(
+          rerunCount,
+          5,
+          'Computation should have rerun after inserting documents'
+        );
+        test.equal(fetchedResults.length, 5, 'All documents should be fetched');
+        test.equal(
+          fetchedResults.map((doc) => doc.value),
+          [0, 1, 2, 3, 4],
+          'Documents should be sorted by value ascending'
+        );
+
+        // Change sort order
+        sortOrder = { value: -1 };
+        await trackerComputation.flush();
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran with new sort order
+        test.equal(
+          rerunCount,
+          6,
+          'Computation should have rerun after changing sort order'
+        );
+        test.equal(
+          fetchedResults.map((doc) => doc.value),
+          [4, 3, 2, 1, 0],
+          'Documents should be sorted by value descending'
+        );
+
+        // Apply filter for even values
+        queryFilter = { value: { $mod: [2, 0] } };
+        await trackerComputation.flush();
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran with filter
+        test.equal(
+          rerunCount,
+          7,
+          'Computation should have rerun after applying filter'
+        );
+        test.equal(
+          fetchedResults.map((doc) => doc.value),
+          [4, 2, 0],
+          'Only documents with even values should be fetched'
+        );
+
+        // Apply limit
+        limitValue = 3;
+        await trackerComputation.flush();
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran with limit
+        test.equal(
+          rerunCount,
+          8,
+          'Computation should have rerun after applying limit'
+        );
+        test.equal(
+          fetchedResults.length,
+          3,
+          'Only the first 3 documents should be fetched'
+        );
+        test.equal(
+          fetchedResults.map((doc) => doc.value),
+          [4, 2, 0],
+          'Only the first 3 documents should be fetched (with descending sort)'
+        );
+
+        // Apply skip
+        skipValue = 1;
+        await trackerComputation.flush();
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran with skip
+        test.equal(
+          rerunCount,
+          9,
+          'Computation should have rerun after applying skip'
+        );
+        test.equal(
+          fetchedResults.map((doc) => doc.value),
+          [2, 0],
+          'Documents should be fetched with skip applied'
+        );
+
+        // Apply fields projection
+        fieldsProjection = { value: 0 };
+        await trackerComputation.flush();
+
+        // Wait for computation to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify computation reran with projection
+        test.equal(
+          rerunCount,
+          10,
+          'Computation should have rerun after applying projection'
+        );
+        test.equal(fetchedResults.length, 2, 'Should still fetch 2 documents');
+
+        // Check that only the value field is present
+        test.isTrue(
+          fetchedResults.every((doc) => doc.value === undefined),
+          'fetchAsync should respect fields projection'
+        );
+
+        // Clean up
+        trackerComputation.stop();
+        await TestFetch.find().forEachAsync(async (doc) => {
+          await TestFetch.removeAsync(doc._id);
+        });
+      }
+    );
+  }
+});
