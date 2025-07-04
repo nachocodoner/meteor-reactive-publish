@@ -19,6 +19,10 @@ class AsyncTrackerDependency {
         this._dependents.delete(comp._id);
         this._attached.delete(comp);
       });
+      comp.onStop(() => {
+        this._dependents.delete(comp._id);
+        this._attached.delete(comp);
+      });
     }
     return true;
   }
@@ -30,8 +34,7 @@ class AsyncTrackerDependency {
   }
 
   hasDependents() {
-    for (var id in this._dependents) return true;
-    return false;
+    return this._dependents.size > 0;
   }
 }
 
@@ -141,12 +144,14 @@ class AsyncTrackerComputation {
   async flush() {
     if (this._running) return;
 
-    await this._run();
+    if (this.invalidated) {
+      await this._run();
+    }
   }
 
   async run() {
-    await this.invalidate();
-    await this.flush();
+    this.invalidated = true;
+    await this._run();
   }
 }
 
@@ -154,6 +159,58 @@ const AsyncTracker = {
   autorun: (f, opts) => new AsyncTrackerComputation(f, opts),
   currentComputation: () => asyncLocalStorage.getStore(),
   Dependency: AsyncTrackerDependency,
+  nonreactive: async (f) => asyncLocalStorage.run(null, () => f()),
 };
 
-export { AsyncTracker };
+const ReactiveVarAsync = function (initialValue, equalsFunc) {
+  if (!(this instanceof ReactiveVarAsync)) {
+    return new ReactiveVarAsync(initialValue, equalsFunc);
+  }
+
+  this.curValue = initialValue;
+  this.equalsFunc = equalsFunc;
+  this.dep = new AsyncTracker.Dependency();
+};
+
+ReactiveVarAsync._isEqual = function (oldValue, newValue) {
+  const a = oldValue,
+    b = newValue;
+  if (a !== b) {
+    return false;
+  } else {
+    return (
+      !a ||
+      typeof a === 'number' ||
+      typeof a === 'boolean' ||
+      typeof a === 'string'
+    );
+  }
+};
+
+ReactiveVarAsync.prototype.get = function () {
+  this.dep.depend();
+  return this.curValue;
+};
+
+ReactiveVarAsync.prototype.set = function (newValue) {
+  const oldValue = this.curValue;
+
+  const equals = this.equalsFunc || ReactiveVarAsync._isEqual;
+
+  if (equals(oldValue, newValue)) {
+    return;
+  }
+
+  this.curValue = newValue;
+  this.dep.changed();
+};
+
+ReactiveVarAsync.prototype.toString = function () {
+  return 'ReactiveVarAsync{' + this.get() + '}';
+};
+
+ReactiveVarAsync.prototype._numListeners = function () {
+  return this.dep._dependents.size;
+};
+
+export { AsyncTracker, ReactiveVarAsync };

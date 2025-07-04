@@ -239,6 +239,12 @@ export const extendPublish = (name, publishFunction, options) => {
 
       if (!computation._publishAfterRunSet) {
         computation._publishAfterRunSet = true;
+
+        computation.beforeRun(() => {
+          oldDocuments[computation._id] = documents[computation._id] || {};
+          documents[computation._id] = {};
+        });
+
         computation.afterRun(() => {
           iterateObjectOrMapKeys(publish._documents, (collectionName) => {
             let currentlyPublishedDocumentIds;
@@ -272,19 +278,22 @@ export const extendPublish = (name, publishFunction, options) => {
               otherComputationsAddedDocumentsIds,
               otherComputationsPreviouslyAddedDocumentsIds
             );
+            console.log(
+              '--> (server.js-Line: 281)\n diffIds: ',
+              diffIds,
+              diffIds.length,
+              'currentlyPublishedDocumentIds',
+              currentlyPublishedDocumentIds?.length,
+              currentComputationAddedDocumentIds?.length,
+              otherComputationsPreviouslyAddedDocumentsIds?.length
+            );
             diffIds.forEach((id) => {
               publish.removed(collectionName, publish._idFilter.idParse(id));
             });
           });
-
-          computation.beforeRun(() => {
-            oldDocuments[computation._id] = documents[computation._id] || {};
-            documents[computation._id] = {};
-          });
-          computation._publishAfterRunSet = false;
         });
 
-        computation.flush();
+        Meteor._setImmediate(computation.flush.bind(computation));
       }
     };
 

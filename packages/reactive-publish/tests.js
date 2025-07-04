@@ -1,8 +1,7 @@
 import { Tinytest } from 'meteor/tinytest';
-import { AsyncTracker } from 'meteor/server-autorun';
+import { AsyncTracker, ReactiveVarAsync } from 'meteor/server-autorun';
 import { ReactiveVar } from 'meteor/reactive-var';
 import { Mongo } from 'meteor/mongo';
-import { LocalCollection } from 'meteor/minimongo';
 import { Random } from 'meteor/random';
 
 // ---- Helpers ----
@@ -183,8 +182,10 @@ async function runSteps(steps, test, done) {
 
   // On the server, define additional (local) collections, publications, and methods.
   if (Meteor.isServer) {
-    const LocalCollection = new Mongo.Collection(null, { idGeneration });
-    const localCollectionLimit = new ReactiveVar(null);
+    const LocalCollection = new Mongo.Collection(null, {
+      idGeneration,
+    });
+    const localCollectionLimit = new ReactiveVarAsync(null);
     // Expose for client methods.
     global.LocalCollection = LocalCollection;
 
@@ -425,18 +426,22 @@ async function runSteps(steps, test, done) {
 
     Meteor.publish(`localCollection_${idGeneration}`, function () {
       const self = this;
-      self.autorun(() => {
-        LocalCollection.find(
+      self.autorun(async () => {
+        const limit = localCollectionLimit.get();
+        console.log('--> (tests.js-Line: 431)\n limit: ', limit);
+        await LocalCollection.find(
           {},
-          { sort: { i: 1 }, limit: localCollectionLimit.get() }
-        ).observeChanges({
+          { sort: { i: 1 }, ...(limit && { limit }) }
+        ).observeChangesAsync({
           addedBefore(id, fields) {
             self.added(`localCollection_${idGeneration}`, id, fields);
           },
           changed(id, fields) {
+            if (AsyncTracker.currentComputation()) return;
             self.changed(`localCollection_${idGeneration}`, id, fields);
           },
           removed(id) {
+            if (AsyncTracker.currentComputation()) return;
             self.removed(`localCollection_${idGeneration}`, id);
           },
         });
@@ -466,8 +471,8 @@ async function runSteps(steps, test, done) {
     methods[`setLocalCollectionLimit_${idGeneration}`] = function (limit) {
       localCollectionLimit.set(limit);
     };
-    methods[`insertLocalCollection_${idGeneration}`] = function (doc) {
-      return LocalCollection.insert(doc);
+    methods[`insertLocalCollection_${idGeneration}`] = async function (doc) {
+      return LocalCollection.insertAsync(doc);
     };
     Meteor.methods(methods);
   } else {
@@ -480,8 +485,8 @@ async function runSteps(steps, test, done) {
 
   // Methods available on both client and server.
   const localMethods = {};
-  localMethods[`clearLocalCollection_${idGeneration}`] = function () {
-    return LocalCollection.remove({});
+  localMethods[`clearLocalCollection_${idGeneration}`] = async function () {
+    return LocalCollection.removeAsync({});
   };
   Meteor.methods(localMethods);
 
@@ -658,6 +663,12 @@ async function runSteps(steps, test, done) {
         });
 
         const postIds = posts.map((doc) => doc._id);
+        console.log('--> (tests.js-Line: 666)\n postIds: ', postIds);
+        console.log(
+          '--> (tests.js-Line: 668)\n this.posts.slice(1): ',
+          this.posts.slice(1),
+          this.posts[0]
+        );
         test.isTrue(arraysHaveSameItems(postIds, this.posts.slice(1)));
 
         try {
@@ -1219,7 +1230,7 @@ async function runSteps(steps, test, done) {
   //           this.changes = [];
   //           this.handle = Posts.find({
   //             timestamp: { $exists: true },
-  //           }).observeChanges({
+  //           }).observeChangesAsync({
   //             added: (id, fields) => {
   //               this.changes.push({ added: id, timestamp: Date.now() });
   //             },
@@ -1233,39 +1244,48 @@ async function runSteps(steps, test, done) {
   //           next();
   //         });
   //       },
-  //       function (next) {
-  //         test.equal(Posts.find({ timestamp: { $exists: true } }).fetch(), []);
+  //       async function (next) {
+  //         test.equal(
+  //           await Posts.find({ timestamp: { $exists: true } }).fetchAsync(),
+  //           []
+  //         );
   //         this.posts = [];
   //         let pending = 10;
   //         for (let i = 0; i < 10; i++) {
   //           const timestamp = Date.now() + i * 91;
-  //           Meteor.call(
-  //             `insertPost_${idGeneration}`,
-  //             timestamp,
-  //             (error, id) => {
-  //               test.isFalse(error, error && error.toString());
-  //               test.ok(id);
-  //               this.posts.push({ _id: id, timestamp });
-  //               if (--pending === 0) {
-  //                 Meteor.setTimeout(next, 1000);
-  //               }
+  //           try {
+  //             const id = await Meteor.callAsync(
+  //               `insertPost_${idGeneration}`,
+  //               timestamp
+  //             );
+  //             test.ok(id);
+  //             this.posts.push({ _id: id, timestamp });
+  //             if (--pending === 0) {
+  //               await Meteor.setTimeout(next, 1000);
   //             }
-  //           );
+  //           } catch (error) {
+  //             test.isFalse(error, error && error.toString());
+  //           }
   //         }
   //       },
-  //       function (next) {
+  //       async function (next) {
   //         this.posts.sort((a, b) => a.timestamp - b.timestamp);
-  //         test.equal(
-  //           Posts.find(
-  //             { timestamp: { $exists: true } },
-  //             { sort: { timestamp: 1 } }
-  //           ).fetch(),
-  //           this.posts
+  //         test.isTrue(
+  //           arraysHaveSameItems(
+  //             await Posts.find(
+  //               { timestamp: { $exists: true } },
+  //               { sort: { timestamp: 1 } }
+  //             ).fetchAsync(),
+  //             this.posts
+  //           )
   //         );
-  //         Meteor.setTimeout(next, 3000);
+  //         await Meteor.setTimeout(next, 3000);
   //       },
-  //       function (next) {
-  //         test.equal(Posts.find({ timestamp: { $exists: true } }).fetch(), []);
+  //       async function (next) {
+  //         test.equal(
+  //           await Posts.find({ timestamp: { $exists: true } }).fetchAsync(),
+  //           []
+  //         );
   //         test.equal(this.changes.length, 20);
   //         const postsId = this.posts.map((post) => post._id);
   //         const added = this.changes
@@ -1275,7 +1295,7 @@ async function runSteps(steps, test, done) {
   //         const removed = this.changes
   //           .filter((change) => change.removed)
   //           .map((change) => change.removed);
-  //         test.equal(removed, postsId);
+  //         test.isTrue(arraysHaveSameItems(removed, postsId));
   //         const addedTimestamps = this.changes
   //           .filter((change) => change.added)
   //           .map((change) => change.timestamp);
@@ -1327,7 +1347,7 @@ async function runSteps(steps, test, done) {
   // );
 
   // LOCAL COLLECTION – Test insertions and limit changes.
-  function localCollectionSteps() {
+  function localCollectionSteps(test) {
     return [
       async function (next) {
         try {
@@ -1370,7 +1390,7 @@ async function runSteps(steps, test, done) {
         await Meteor.setTimeout(next, 100);
       },
       async function (next) {
-        test.equal(await LocalCollection.find({}).countAsync(), 10);
+        test.equal(LocalCollection.find({}).count(), 10);
 
         try {
           await Meteor.callAsync(`setLocalCollectionLimit_${idGeneration}`, 5);
@@ -1378,50 +1398,54 @@ async function runSteps(steps, test, done) {
         } catch (error) {
           test.isFalse(error, error);
         }
-      },
-      async function (next) {
-        test.equal(await LocalCollection.find({}).countAsync(), 5);
-
-        // Insert more documents
-        for (let i = 0; i < 10; i++) {
-          try {
-            const documentId = await Meteor.callAsync(
-              `insertLocalCollection_${idGeneration}`,
-              { i: i }
-            );
-            test.ok(documentId);
-          } catch (error) {
-            test.isFalse(error, error);
-          }
-        }
-
         next();
       },
       async function (next) {
-        await Meteor.setTimeout(next, 100);
-      },
-      async function (next) {
         test.equal(await LocalCollection.find({}).countAsync(), 5);
+        //
+        // // Insert more documents
+        // for (let i = 0; i < 10; i++) {
+        //   try {
+        //     const documentId = await Meteor.callAsync(
+        //       `insertLocalCollection_${idGeneration}`,
+        //       { i: i }
+        //     );
+        //     test.ok(documentId);
+        //   } catch (error) {
+        //     test.isFalse(error, error);
+        //   }
+        // }
 
-        try {
-          await Meteor.callAsync(`setLocalCollectionLimit_${idGeneration}`, 15);
-          await Meteor.setTimeout(next, 100);
-        } catch (error) {
-          test.isFalse(error, error);
-        }
-      },
-      async function (next) {
-        test.equal(await LocalCollection.find({}).countAsync(), 15);
         next();
       },
+      // async function (next) {
+      //   await Meteor.setTimeout(next, 100);
+      // },
+      // async function (next) {
+      //   test.equal(await LocalCollection.find({}).countAsync(), 5);
+      //
+      //   try {
+      //     await Meteor.callAsync(`setLocalCollectionLimit_${idGeneration}`, 15);
+      //     await Meteor.setTimeout(next, 100);
+      //   } catch (error) {
+      //     test.isFalse(error, error);
+      //   }
+      // },
+      // async function (next) {
+      //   test.equal(await LocalCollection.find({}).countAsync(), 15);
+      //   next();
+      // },
     ];
   }
-  // Tinytest.addAsync(
-  //   `ReactivePublish local collection (${idGeneration})`,
-  //   (test, done) => {
-  //     runSteps(localCollectionSteps(), test, done);
-  //   }
-  // );
+
+  if (Meteor.isClient) {
+    Tinytest.addAsync(
+      `ReactivePublish local collection (${idGeneration})`,
+      (test, done) => {
+        runSteps(localCollectionSteps(test), test, done);
+      }
+    );
+  }
 
   // UNBLOCKED PUBLISH – Verify multiplexer counts.
   function unblockedSteps(test) {

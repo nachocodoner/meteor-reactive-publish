@@ -1,5 +1,6 @@
 import { AsyncTracker } from 'meteor/server-autorun';
 import { MongoInternals, Mongo } from 'meteor/mongo';
+import { LocalCollection } from 'meteor/minimongo';
 
 const callbacksOrdered = {
   addedBefore: true,
@@ -13,26 +14,29 @@ const MeteorCursor = Object.getPrototypeOf(
   MongoInternals.defaultRemoteCollectionDriver().mongo.find()
 ).constructor;
 
-MeteorCursor.prototype._isReactive = function () {
-  const options = this._cursorDescription.options || {};
-  return options.reactive !== undefined ? options.reactive : true;
-};
+MeteorCursor.prototype._isReactive =
+  LocalCollection.Cursor.prototype._isReactive = function () {
+    const options = this._cursorDescription.options || {};
+    return options.reactive !== undefined ? options.reactive : true;
+  };
 
 const methods = ['fetch', 'fetchAsync', 'mapAsync', 'forEachAsync'];
 methods.forEach((method) => {
   const orig = MeteorCursor.prototype[method];
-  MeteorCursor.prototype[method] = async function (...args) {
-    const opts = this._cursorDescription.options || {};
-    const hasOrdered = Object.prototype.hasOwnProperty.call(opts, 'ordered');
-    const useOrdered = hasOrdered ? opts.ordered : !!opts.sort;
-    this._attachReactiveDependency(
-      useOrdered ? callbacksOrdered : callbacksUnordered
-    );
-    return orig.apply(this, args);
-  };
+  MeteorCursor.prototype[method] = LocalCollection.Cursor.prototype[method] =
+    async function (...args) {
+      const opts = this._cursorDescription.options || {};
+      const hasOrdered = Object.prototype.hasOwnProperty.call(opts, 'ordered');
+      const useOrdered = hasOrdered ? opts.ordered : !!opts.sort;
+      _attachReactiveDependency.call(
+        this,
+        useOrdered ? callbacksOrdered : callbacksUnordered
+      );
+      return orig.apply(this, args);
+    };
 });
 
-MeteorCursor.prototype._attachReactiveDependency = function (changers) {
+function _attachReactiveDependency(changers) {
   const comp = AsyncTracker.currentComputation();
   if (!comp) return Promise.resolve(null);
 
@@ -51,7 +55,8 @@ MeteorCursor.prototype._attachReactiveDependency = function (changers) {
   ['added', 'changed', 'removed', 'addedBefore', 'movedBefore'].forEach(
     (event) => {
       if (changers[event]) {
-        cb[event] = () => {
+        cb[event] = (...params) => {
+          console.log('--> (server.js-Line: 61)\n event: ', event, ...params);
           if (!initializing) dep.changed();
         };
       }
@@ -67,7 +72,7 @@ MeteorCursor.prototype._attachReactiveDependency = function (changers) {
   });
 
   return handlePromise;
-};
+}
 
 // 3) Wrap Collection.find() to cache cursors and re‐depend on fetchAsync
 const origFind = Mongo.Collection.prototype.find;
@@ -112,9 +117,10 @@ Mongo.Collection.prototype.find = function (selector, options) {
 
   const cursor = origFind.call(this, selector, options);
   // First time: attach reactivity
-  const { sort, ordered } = cursor._cursorDescription.options || {};
+  const { sort, ordered } =
+    cursor?._cursorDescription?.options || options || {};
   const cbSet =
-    'ordered' in (cursor._cursorDescription.options || {})
+    'ordered' in (cursor?._cursorDescription?.options || options || {})
       ? ordered
         ? callbacksOrdered
         : callbacksUnordered
@@ -122,7 +128,7 @@ Mongo.Collection.prototype.find = function (selector, options) {
         ? callbacksOrdered
         : callbacksUnordered;
 
-  cursor._attachReactiveDependency(cbSet);
+  _attachReactiveDependency.call(cursor, cbSet);
   cursor._hasReactiveDepAttached = true;
 
   comp._cursorCache.set(key, { cursor });
@@ -131,11 +137,12 @@ Mongo.Collection.prototype.find = function (selector, options) {
 
 const originalExists = MeteorCursor.prototype.exists;
 if (originalExists) {
-  MeteorCursor.prototype.exists = function (...args) {
-    if (this._isReactive() && !this._hasReactiveDepAttached) {
-      this._attachReactiveDependency({ added: true, removed: true });
-      this._hasReactiveDepAttached = true;
-    }
-    return originalExists.apply(this, args);
-  };
+  MeteorCursor.prototype.exists = LocalCollection.Cursor.prototype.exists =
+    function (...args) {
+      if (this._isReactive() && !this._hasReactiveDepAttached) {
+        _attachReactiveDependency.call(this, { added: true, removed: true });
+        this._hasReactiveDepAttached = true;
+      }
+      return originalExists.apply(this, args);
+    };
 }

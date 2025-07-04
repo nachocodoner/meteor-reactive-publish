@@ -17,7 +17,6 @@ Package.onUse(function (api) {
   api.export('Tracker');
   api.export('AsyncTracker');
 
-  api.mainModule('client.js', 'client');
   api.mainModule('server.js', 'server');
 });
 
@@ -25,5 +24,5 @@ Package.onTest(function (api) {
   api.use(['ecmascript', 'reactive-var']);
   api.use(['tinytest', 'test-helpers']);
   api.use('server-autorun');
-  api.mainModule('tests.js');
+  api.mainModule('tests.js', 'server');
 });
