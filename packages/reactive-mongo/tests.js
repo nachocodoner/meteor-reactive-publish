@@ -679,7 +679,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
 
         // Change sort order
         sortOrder = { value: -1 };
-        await trackerComputation.flush();
+        await trackerComputation.run();
 
         // Wait for computation to rerun
         await Meteor._sleepForMs(100);
@@ -698,7 +698,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
 
         // Apply filter for even values
         queryFilter = { value: { $mod: [2, 0] } };
-        await trackerComputation.flush();
+        await trackerComputation.run();
 
         // Wait for computation to rerun
         await Meteor._sleepForMs(100);
@@ -717,7 +717,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
 
         // Apply limit
         limitValue = 3;
-        await trackerComputation.flush();
+        await trackerComputation.run();
 
         // Wait for computation to rerun
         await Meteor._sleepForMs(100);
@@ -741,7 +741,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
 
         // Apply skip
         skipValue = 1;
-        await trackerComputation.flush();
+        await trackerComputation.run();
 
         // Wait for computation to rerun
         await Meteor._sleepForMs(100);
@@ -760,7 +760,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
 
         // Apply fields projection
         fieldsProjection = { value: 0 };
-        await trackerComputation.flush();
+        await trackerComputation.run();
 
         // Wait for computation to rerun
         await Meteor._sleepForMs(100);

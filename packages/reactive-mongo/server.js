@@ -55,8 +55,7 @@ function _attachReactiveDependency(changers) {
   ['added', 'changed', 'removed', 'addedBefore', 'movedBefore'].forEach(
     (event) => {
       if (changers[event]) {
-        cb[event] = (...params) => {
-          console.log('--> (server.js-Line: 61)\n event: ', event, ...params);
+        cb[event] = () => {
           if (!initializing) dep.changed();
         };
       }
