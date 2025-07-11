@@ -1572,3 +1572,10 @@ if (Meteor.isClient) {
  );
 }
 });
+
+// TODO: Clean formatting of the file.
+
+// TODO: Add more tests for other functionalities, such as
+// - Testing that documents and oldDocuments are emptied after all subscriptions are stopped
+// - Testing that computation are just run once when the data changes
+// - Testing that observe callbacks are not rerun unnecessarily
