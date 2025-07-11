@@ -241,54 +241,61 @@ export const extendPublish = (name, publishFunction, options) => {
         computation._publishAfterRunSet = true;
 
         computation.beforeRun(() => {
-          oldDocuments[computation._id] = documents[computation._id] || {};
-          documents[computation._id] = {};
+          Meteor._setImmediate(() => {
+            oldDocuments[computation._id] = documents[computation._id] || {};
+            documents[computation._id] = {};
+          });
         });
 
         computation.afterRun(() => {
-          iterateObjectOrMapKeys(publish._documents, (collectionName) => {
-            let currentlyPublishedDocumentIds;
-            if (publish._documents instanceof Map) {
-              currentlyPublishedDocumentIds = Array.from(
-                publish._documents.get(collectionName) || []
+          Meteor._setImmediate(() => {
+            iterateObjectOrMapKeys(publish._documents, (collectionName) => {
+              let currentlyPublishedDocumentIds;
+              if (publish._documents instanceof Map) {
+                currentlyPublishedDocumentIds = Array.from(
+                  publish._documents.get(collectionName) || []
+                );
+              } else {
+                currentlyPublishedDocumentIds = Object.keys(
+                  publish._documents[collectionName] || {}
+                );
+              }
+              const currentComputationAddedDocumentIds = Object.keys(
+                (documents[computation._id] &&
+                  documents[computation._id][collectionName]) ||
+                  {}
               );
-            } else {
-              currentlyPublishedDocumentIds = Object.keys(
-                publish._documents[collectionName] || {}
+              const otherComputationsAddedDocumentsIds = union(
+                ...Object.entries(documents)
+                  .filter(([compId]) => compId !== String(computation._id))
+                  .map(([, docs]) => Object.keys(docs[collectionName] || {}))
               );
-            }
-            const currentComputationAddedDocumentIds = Object.keys(
-              (documents[computation._id] &&
-                documents[computation._id][collectionName]) ||
-                {}
-            );
-            const otherComputationsAddedDocumentsIds = union(
-              ...Object.entries(documents)
-                .filter(([compId]) => compId !== String(computation._id))
-                .map(([, docs]) => Object.keys(docs[collectionName] || {}))
-            );
-            const otherComputationsPreviouslyAddedDocumentsIds = union(
-              ...Object.entries(oldDocuments)
-                .filter(([compId]) => compId !== String(computation._id))
-                .map(([, docs]) => Object.keys(docs[collectionName] || {}))
-            );
-            const diffIds = difference(
-              currentlyPublishedDocumentIds,
-              currentComputationAddedDocumentIds,
-              otherComputationsAddedDocumentsIds,
-              otherComputationsPreviouslyAddedDocumentsIds
-            );
-            console.log(
-              '--> (server.js-Line: 281)\n diffIds: ',
-              diffIds,
-              diffIds.length,
-              'currentlyPublishedDocumentIds',
-              currentlyPublishedDocumentIds?.length,
-              currentComputationAddedDocumentIds?.length,
-              otherComputationsPreviouslyAddedDocumentsIds?.length
-            );
-            diffIds.forEach((id) => {
-              publish.removed(collectionName, publish._idFilter.idParse(id));
+              const otherComputationsPreviouslyAddedDocumentsIds = union(
+                ...Object.entries(oldDocuments)
+                  .filter(([compId]) => compId !== String(computation._id))
+                  .map(([, docs]) => Object.keys(docs[collectionName] || {}))
+              );
+              const diffIds = difference(
+                currentlyPublishedDocumentIds,
+                currentComputationAddedDocumentIds,
+                otherComputationsAddedDocumentsIds,
+                otherComputationsPreviouslyAddedDocumentsIds
+              );
+              console.log(
+                '--> (server.js-Line: 281)\n diffIds: ',
+                this._name,
+                diffIds,
+                diffIds.length,
+                'currentlyPublishedDocumentIds',
+                currentlyPublishedDocumentIds?.length,
+                currentComputationAddedDocumentIds?.length,
+                otherComputationsPreviouslyAddedDocumentsIds?.length,
+                'collectionName',
+                collectionName
+              );
+              diffIds.forEach((id) => {
+                publish.removed(collectionName, publish._idFilter.idParse(id));
+              });
             });
           });
         });

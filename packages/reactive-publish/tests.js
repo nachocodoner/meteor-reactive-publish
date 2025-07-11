@@ -428,7 +428,6 @@ async function runSteps(steps, test, done) {
       const self = this;
       self.autorun(async () => {
         const limit = localCollectionLimit.get();
-        console.log('--> (tests.js-Line: 431)\n limit: ', limit);
         await LocalCollection.find(
           {},
           { sort: { i: 1 }, ...(limit && { limit }) }
@@ -437,11 +436,11 @@ async function runSteps(steps, test, done) {
             self.added(`localCollection_${idGeneration}`, id, fields);
           },
           changed(id, fields) {
-            if (AsyncTracker.currentComputation()) return;
+            // if (AsyncTracker.currentComputation()) return;
             self.changed(`localCollection_${idGeneration}`, id, fields);
           },
           removed(id) {
-            if (AsyncTracker.currentComputation()) return;
+            // if (AsyncTracker.currentComputation()) return;
             self.removed(`localCollection_${idGeneration}`, id);
           },
         });
@@ -1384,10 +1383,7 @@ async function runSteps(steps, test, done) {
           }
         }
 
-        next();
-      },
-      async function (next) {
-        await Meteor.setTimeout(next, 100);
+        await Meteor.setTimeout(next, 1000);
       },
       async function (next) {
         test.equal(LocalCollection.find({}).count(), 10);
@@ -1398,43 +1394,41 @@ async function runSteps(steps, test, done) {
         } catch (error) {
           test.isFalse(error, error);
         }
-        next();
+        
+        await Meteor.setTimeout(next, 1000);
       },
       async function (next) {
         test.equal(await LocalCollection.find({}).countAsync(), 5);
-        //
-        // // Insert more documents
-        // for (let i = 0; i < 10; i++) {
-        //   try {
-        //     const documentId = await Meteor.callAsync(
-        //       `insertLocalCollection_${idGeneration}`,
-        //       { i: i }
-        //     );
-        //     test.ok(documentId);
-        //   } catch (error) {
-        //     test.isFalse(error, error);
-        //   }
-        // }
+        
+         // Insert more documents
+         for (let i = 10; i < 20; i++) {
+           try {
+             const documentId = await Meteor.callAsync(
+               `insertLocalCollection_${idGeneration}`,
+               { i: i }
+             );
+             test.ok(documentId);
+           } catch (error) {
+             test.isFalse(error, error);
+           }
+        }
 
+        await Meteor.setTimeout(next, 1000);
+      },
+      async function (next) {
+         test.equal(await LocalCollection.find({}).countAsync(), 5);
+      
+         try {
+           await Meteor.callAsync(`setLocalCollectionLimit_${idGeneration}`, 15);
+           await Meteor.setTimeout(next, 100);
+         } catch (error) {
+           test.isFalse(error, error);
+         }
+       },
+      async function (next) {
+        test.equal(await LocalCollection.find({}).countAsync(), 15);
         next();
       },
-      // async function (next) {
-      //   await Meteor.setTimeout(next, 100);
-      // },
-      // async function (next) {
-      //   test.equal(await LocalCollection.find({}).countAsync(), 5);
-      //
-      //   try {
-      //     await Meteor.callAsync(`setLocalCollectionLimit_${idGeneration}`, 15);
-      //     await Meteor.setTimeout(next, 100);
-      //   } catch (error) {
-      //     test.isFalse(error, error);
-      //   }
-      // },
-      // async function (next) {
-      //   test.equal(await LocalCollection.find({}).countAsync(), 15);
-      //   next();
-      // },
     ];
   }
 

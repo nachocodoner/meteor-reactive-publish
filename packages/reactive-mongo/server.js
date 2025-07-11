@@ -110,7 +110,7 @@ Mongo.Collection.prototype.find = function (selector, options) {
     const entry = comp._cursorCache.get(key);
     if (entry.cursor._reactiveDependency) {
       entry.cursor._reactiveDependency.depend();
-    }
+      }
     return entry.cursor;
   }
 
