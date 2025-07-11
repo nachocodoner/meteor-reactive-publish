@@ -379,6 +379,7 @@ export const extendPublish = (name, publishFunction, options) => {
         } catch (error) {
           computation.stop();
           if (computation.firstRun) {
+            publish.error(error);
             throw error;
           } else {
             publish.error(error);

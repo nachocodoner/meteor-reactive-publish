@@ -1518,13 +1518,13 @@ if (Meteor.isClient) {
   // On the server, define error publications.
   if (Meteor.isServer) {
     Meteor.publish('initial error', function () {
-      this.autorun(() => {
+      this.autorun(async () => {
         throw new Meteor.Error('triggered error');
       });
     });
     Meteor.publish('rereun error', function () {
-      const reactiveError = new ReactiveVar(false);
-      this.autorun(() => {
+      const reactiveError = new ReactiveVarAsync(false);
+      this.autorun(async () => {
         if (reactiveError.get()) {
           throw new Meteor.Error('triggered error');
         }
@@ -1536,36 +1536,39 @@ if (Meteor.isClient) {
     });
   }
 
-  // Tinytest.addAsync(
-  //   `ReactivePublish error (${idGeneration}) - initial error`,
-  //   (test, done) => {
-  //     Meteor.subscribe('initial error', {
-  //       onError(error) {
-  //         test.ok(true, 'Error received as expected');
-  //         done();
-  //       },
-  //       onReady() {
-  //         test.fail('Subscription should have failed');
-  //         done();
-  //       },
-  //     });
-  //   }
-  // );
-  //
-  // Tinytest.addAsync(
-  //   `ReactivePublish error (${idGeneration}) - rereun error`,
-  //   (test, done) => {
-  //     let isReady = false;
-  //     Meteor.subscribe('rereun error', {
-  //       onReady() {
-  //         isReady = true;
-  //       },
-  //       onStop(error) {
-  //         test.ok(isReady, 'Received error on rerun');
-  //         test.equal(error.message, '[triggered error]');
-  //         done();
-  //       },
-  //     });
-  //   }
-  // );
+if (Meteor.isClient) {
+   Tinytest.addAsync(
+     `ReactivePublish error (${idGeneration}) - initial error`,
+     (test, done) => {
+      Meteor.subscribe('initial error', {
+        onError(error) {
+          console.log('Error received:', error);
+          test.ok(true, 'Error received as expected');
+         done();
+       },
+       onReady() {
+         test.fail('Subscription should have failed');
+         done();
+       },
+     });
+   }
+ );
+
+ Tinytest.addAsync(
+   `ReactivePublish error (${idGeneration}) - rereun error`,
+   (test, done) => {
+     let isReady = false;
+     Meteor.subscribe('rereun error', {
+       onReady() {
+         isReady = true;
+       },
+       onStop(error) {
+         test.ok(isReady, 'Received error on rerun');
+         test.equal(error.message, '[triggered error]');
+         done();
+       },
+     });
+   }
+ );
+}
 });
