@@ -473,6 +473,7 @@ async function runSteps(steps, test, done) {
     methods[`insertLocalCollection_${idGeneration}`] = async function (doc) {
       return LocalCollection.insertAsync(doc);
     };
+    methods[`runOnServer`] = async function () {};
     Meteor.methods(methods);
   } else {
     // On the client, create persistent LocalCollection.
@@ -1445,28 +1446,28 @@ async function runSteps(steps, test, done) {
   function unblockedSteps(test) {
     return [
       async function (next) {
-        // Run on server (assuming a "runOnServer" method exists).
         try {
-          await Meteor.callAsync('runOnServer', () => {
-            let count = 0;
-            allCollections.forEach((collection) => {
-              if (
-                collection &&
-                collection._driver &&
-                collection._driver.mongo &&
+          await Meteor.callAsync('runOnServer');
+          let count = 0;
+          allCollections.forEach((collection) => {
+            console.log(collection);
+            if (
+              collection &&
+              collection._driver &&
+              collection._driver.mongo &&
+              collection._driver.mongo._observeMultiplexers
+            ) {
+              console.log(collection._driver.mongo._observeMultiplexers);
+              count += Object.keys(
                 collection._driver.mongo._observeMultiplexers
-              ) {
-                count += Object.keys(
-                  collection._driver.mongo._observeMultiplexers
-                ).length;
-              }
-            });
-            this.multiplexerCountBefore = count;
-            next();
+              ).length;
+            }
           });
+          this.multiplexerCountBefore = count;
         } catch (error) {
           test.isFalse(error, error && error.toString());
         }
+        next();
       },
       async function (next) {
         this.userId = generateId();
@@ -1481,35 +1482,37 @@ async function runSteps(steps, test, done) {
       },
       async function (next) {
         try {
-          await Meteor.callAsync('runOnServer', () => {
-            let countAfter = 0;
-            allCollections.forEach((collection) => {
-              if (
-                collection &&
-                collection._driver &&
-                collection._driver.mongo &&
+          await Meteor.callAsync('runOnServer');
+          let countAfter = 0;
+          allCollections.forEach((collection) => {
+            if (
+              collection &&
+              collection._driver &&
+              collection._driver.mongo &&
+              collection._driver.mongo._observeMultiplexers
+            ) {
+              countAfter += Object.keys(
                 collection._driver.mongo._observeMultiplexers
-              ) {
-                countAfter += Object.keys(
-                  collection._driver.mongo._observeMultiplexers
-                ).length;
-              }
-            });
-            test.equal(this.multiplexerCountBefore, countAfter);
-            next();
+              ).length;
+            }
           });
+          test.equal(this.multiplexerCountBefore, countAfter);
         } catch (error) {
           test.isFalse(error, error && error.toString());
         }
+        next();
       },
     ];
   }
-  // Tinytest.addAsync(
-  //   `ReactivePublish unblocked (${idGeneration})`,
-  //   (test, done) => {
-  //     runSteps(unblockedSteps(), test, done);
-  //   }
-  // );
+
+if (Meteor.isClient) {
+ Tinytest.addAsync(
+   `ReactivePublish unblocked (${idGeneration})`,
+   (test, done) => {
+     runSteps(unblockedSteps(test), test, done);
+   }
+ );
+}
 
   // ---- ERROR TESTS ----
   // On the server, define error publications.
