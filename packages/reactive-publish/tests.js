@@ -392,7 +392,7 @@ async function runSteps(steps, test, done) {
       }
     );
 
-    const currentTime = new ReactiveVar(Date.now());
+    const currentTime = new ReactiveVarAsync(Date.now());
     Meteor.setInterval(() => {
       currentTime.set(Date.now());
     }, 1);
@@ -1219,132 +1219,144 @@ async function runSteps(steps, test, done) {
     );
   }
 
-  //
-  // // REACTIVE TIME – Tests recent posts publishing and auto-removals.
-  // Tinytest.addAsync(
-  //   `ReactivePublish reactive time (${idGeneration}) - recent-posts`,
-  //   (test, done) => {
-  //     const steps = [
-  //       function (next) {
-  //         this.subscribeSuccess(`recent-posts_${idGeneration}`, () => {
-  //           this.changes = [];
-  //           this.handle = Posts.find({
-  //             timestamp: { $exists: true },
-  //           }).observeChangesAsync({
-  //             added: (id, fields) => {
-  //               this.changes.push({ added: id, timestamp: Date.now() });
-  //             },
-  //             changed: (id, fields) => {
-  //               test.fail('Changed should not occur');
-  //             },
-  //             removed: (id) => {
-  //               this.changes.push({ removed: id, timestamp: Date.now() });
-  //             },
-  //           });
-  //           next();
-  //         });
-  //       },
-  //       async function (next) {
-  //         test.equal(
-  //           await Posts.find({ timestamp: { $exists: true } }).fetchAsync(),
-  //           []
-  //         );
-  //         this.posts = [];
-  //         let pending = 10;
-  //         for (let i = 0; i < 10; i++) {
-  //           const timestamp = Date.now() + i * 91;
-  //           try {
-  //             const id = await Meteor.callAsync(
-  //               `insertPost_${idGeneration}`,
-  //               timestamp
-  //             );
-  //             test.ok(id);
-  //             this.posts.push({ _id: id, timestamp });
-  //             if (--pending === 0) {
-  //               await Meteor.setTimeout(next, 1000);
-  //             }
-  //           } catch (error) {
-  //             test.isFalse(error, error && error.toString());
-  //           }
-  //         }
-  //       },
-  //       async function (next) {
-  //         this.posts.sort((a, b) => a.timestamp - b.timestamp);
-  //         test.isTrue(
-  //           arraysHaveSameItems(
-  //             await Posts.find(
-  //               { timestamp: { $exists: true } },
-  //               { sort: { timestamp: 1 } }
-  //             ).fetchAsync(),
-  //             this.posts
-  //           )
-  //         );
-  //         await Meteor.setTimeout(next, 3000);
-  //       },
-  //       async function (next) {
-  //         test.equal(
-  //           await Posts.find({ timestamp: { $exists: true } }).fetchAsync(),
-  //           []
-  //         );
-  //         test.equal(this.changes.length, 20);
-  //         const postsId = this.posts.map((post) => post._id);
-  //         const added = this.changes
-  //           .filter((change) => change.added)
-  //           .map((change) => change.added);
-  //         this.assertItemsEqual(added, postsId);
-  //         const removed = this.changes
-  //           .filter((change) => change.removed)
-  //           .map((change) => change.removed);
-  //         test.isTrue(arraysHaveSameItems(removed, postsId));
-  //         const addedTimestamps = this.changes
-  //           .filter((change) => change.added)
-  //           .map((change) => change.timestamp);
-  //         const removedTimestamps = this.changes
-  //           .filter((change) => change.removed)
-  //           .map((change) => change.timestamp);
-  //         addedTimestamps.sort();
-  //         removedTimestamps.sort();
-  //         const sum = (list) => list.reduce((memo, num) => memo + num, 0);
-  //         const averageAdded = sum(addedTimestamps) / addedTimestamps.length;
-  //         const averageRemoved =
-  //           sum(removedTimestamps) / removedTimestamps.length;
-  //         test.ok(averageAdded + 2000 < averageRemoved);
-  //         let removedDelta = 0;
-  //         for (let i = 0; i < removedTimestamps.length - 1; i++) {
-  //           removedDelta += removedTimestamps[i + 1] - removedTimestamps[i];
-  //         }
-  //         removedDelta /= removedTimestamps.length - 1;
-  //         test.ok(removedDelta > 60, removedDelta);
-  //         next();
-  //       },
-  //     ];
-  //     runSteps(steps, test, done);
-  //   }
-  // );
 
+  if (Meteor.isClient) {
+ // REACTIVE TIME – Tests recent posts publishing and auto-removals.
+ Tinytest.addAsync(
+   `ReactivePublish reactive time (${idGeneration}) - recent-posts`,
+   (test, done) => {
+     const steps = [
+       async function (next) {
+         this.subscribeSuccess(`recent-posts_${idGeneration}`, () => {
+           this.changes = [];
+           this.handle = Posts.find({
+             timestamp: { $exists: true },
+           }).observeChangesAsync({
+             added: (id, fields) => {
+              if (this.changes.some((change) => change.added === id)) {
+                 return;
+               } // TODO should not happen re-added for same id
+               this.changes.push({ added: id, timestamp: Date.now() });
+             },
+             changed: (id, fields) => {
+               test.fail('Changed should not occur');
+             },
+             removed: (id) => {
+              if (this.changes.some((change) => change.removed === id)) {
+                 return;
+               } // TODO should not happen re-removed for same id
+               this.changes.push({ removed: id, timestamp: Date.now() });
+             },
+           });
+           next();
+         });
+       },
+       async function (next) {
+         test.equal(
+           await Posts.find({ timestamp: { $exists: true } }).fetchAsync(),
+           []
+         );
+         this.posts = [];
+         let pending = 10;
+         for (let i = 0; i < 10; i++) {
+           const timestamp = Date.now() + i * 91;
+           try {
+             const id = await Meteor.callAsync(
+               `insertPost_${idGeneration}`,
+               timestamp
+             );
+             test.ok(id);
+             this.posts.push({ _id: id, timestamp });
+             if (--pending === 0) {
+               await Meteor.setTimeout(next, 1000);
+             }
+           } catch (error) {
+             test.isFalse(error, error && error.toString());
+           }
+         }
+       },
+       async function (next) {
+         this.posts.sort((a, b) => a.timestamp - b.timestamp);
+         test.isTrue(
+           arraysHaveSameItems(
+             await Posts.find(
+               { timestamp: { $exists: true } },
+               { sort: { timestamp: 1 } }
+             ).fetchAsync(),
+             this.posts
+           )
+         );
+         await Meteor.setTimeout(next, 3000);
+       },
+       async function (next) {
+         test.equal(
+           await Posts.find({ timestamp: { $exists: true } }).fetchAsync(),
+           []
+         );
+         test.equal(this.changes.length, 20);
+         const postsId = this.posts.map((post) => post._id);
+         const added = this.changes
+           .filter((change) => change.added)
+           .map((change) => change.added);
+         test.isTrue(arraysHaveSameItems(added, postsId));
+         this.assertItemsEqual(added, postsId);
+         const removed = this.changes
+           .filter((change) => change.removed)
+           .map((change) => change.removed);
+         test.isTrue(arraysHaveSameItems(removed, postsId));
+         const addedTimestamps = this.changes
+           .filter((change) => change.added)
+           .map((change) => change.timestamp);
+         const removedTimestamps = this.changes
+           .filter((change) => change.removed)
+           .map((change) => change.timestamp);
+         addedTimestamps.sort();
+         removedTimestamps.sort();
+         const sum = (list) => list.reduce((memo, num) => memo + num, 0);
+         const averageAdded = sum(addedTimestamps) / addedTimestamps.length;
+         const averageRemoved =
+           sum(removedTimestamps) / removedTimestamps.length;
+         test.ok(averageAdded + 2000 < averageRemoved);
+         let removedDelta = 0;
+         for (let i = 0; i < removedTimestamps.length - 1; i++) {
+           removedDelta += removedTimestamps[i + 1] - removedTimestamps[i];
+         }
+         removedDelta /= removedTimestamps.length - 1;
+         test.ok(removedDelta > 60, removedDelta);
+
+         next();
+       },
+     ];
+     runSteps(steps, test, done);
+   }
+ );
+}
+
+ if (Meteor.isClient) {
   // MULTIPLE CURSORS – Expect errors on subscriptions.
-  // Tinytest.addAsync(
-  //   `ReactivePublish multiple cursors (${idGeneration})`,
-  //   (test, done) => {
-  //     // Both these subscriptions should trigger errors.
-  //     // Using subscribeFail helper.
-  //     runSteps(
-  //       [
-  //         function (next) {
-  //           this.subscribeFail(`multiple-cursors-1_${idGeneration}`, [], next);
-  //         },
-  //         function (next) {
-  //           this.subscribeFail(`multiple-cursors-2_${idGeneration}`, [], next);
-  //         },
-  //         function (next) {
-  //           next();
-  //         },
-  //       ],
-  //       test,
-  //       done
-  //     );
-  //   }
-  // );
+ Tinytest.addAsync(
+   `ReactivePublish multiple cursors (${idGeneration})`,
+   (test, done) => {
+    // Both these subscriptions should trigger errors.
+    // Using subscribeFail helper.
+     runSteps(
+       [
+         function (next) {
+           this.subscribeFail(`multiple-cursors-1_${idGeneration}`, [], next);
+         },
+         function (next) {
+           this.subscribeFail(`multiple-cursors-2_${idGeneration}`, [], next);
+         },
+         function (next) {
+           next();
+         },
+       ],
+       test,
+       done
+     );
+   }
+ );
+}
 
   // LOCAL COLLECTION – Test insertions and limit changes.
   function localCollectionSteps(test) {
