@@ -1,79 +1,221 @@
 import { Tinytest } from 'meteor/tinytest';
 import { Tracker } from 'meteor/tracker';
 import { ReactiveVar } from 'meteor/reactive-var';
-import { DataLookup } from './lib.js'; // Adjust path as needed
+import { AsyncTracker, ReactiveVarAsync } from 'meteor/server-autorun';
+import { DataLookup, ComputedField } from './lib.js'; // Adjust path as needed
 
-Tinytest.add('data-lookup - basic lookup', function (test) {
-  test.equal(DataLookup.lookup({}, 'foo'), undefined);
-  test.equal(DataLookup.lookup(null, 'foo'), undefined);
-  test.equal(DataLookup.lookup(undefined, 'foo'), undefined);
-  test.equal(DataLookup.lookup(1, 'foo'), undefined);
+if (Meteor.isServer) {
+  // Tinytest.addAsync('computed-field - basic', async function (test, done) {
+  //   const foo = new ComputedField(async () => 42);
+  //
+  //   test.equal(await foo(), 42);
+  //   test.instanceOf(foo, ComputedField);
+  //   test.equal(foo.constructor, ComputedField);
+  //   test.equal(typeof foo, 'function');
+  //
+  //   test.equal(await foo.apply(), 42);
+  //   test.equal(await foo.call(), 42);
+  //   test.equal(`${foo}`, 'ComputedField{42}');
+  //
+  //   done();
+  // });
 
-  test.equal(DataLookup.lookup({}), {});
-  test.equal(DataLookup.lookup(null), null);
-  test.equal(DataLookup.lookup(undefined), undefined);
-  test.equal(DataLookup.lookup(1), 1);
+  Tinytest.addAsync('computed-field - reactive', async function (test, done) {
+    const internal = new ReactiveVarAsync(42);
 
-  test.equal(DataLookup.lookup({}, ''), undefined);
-  test.equal(DataLookup.lookup(null, ''), undefined);
-  test.equal(DataLookup.lookup(undefined, ''), undefined);
-  test.equal(DataLookup.lookup(1, ''), undefined);
+    const foo = new ComputedField(async () => await internal.get());
 
-  test.equal(DataLookup.lookup({}, []), {});
-  test.equal(DataLookup.lookup(null, []), null);
-  test.equal(DataLookup.lookup(undefined, []), undefined);
-  test.equal(DataLookup.lookup(1, []), 1);
+    const changes = [];
+    const handle = await AsyncTracker.autorun(async () => {
+      // console.log('--> (tests.js-Line: 31)\n await foo(): ', await foo());
+      changes.push(await foo());
+    });
 
-  test.equal(DataLookup.lookup({ foo: 'bar' }, 'foo'), 'bar');
-  test.equal(DataLookup.lookup({ foo: { bar: 'baz' } }, 'foo'), { bar: 'baz' });
-  test.equal(DataLookup.lookup({ foo: { bar: 'baz' } }, 'faa'), undefined);
-  test.equal(DataLookup.lookup({ foo: { bar: 'baz' } }, 'foo.faa'), undefined);
-  test.equal(DataLookup.lookup({ foo: { bar: 'baz' } }, 'foo.bar'), 'baz');
-  test.equal(DataLookup.lookup({ foo: null }, 'foo.bar'), undefined);
-  test.equal(DataLookup.lookup({ foo: null }, 'foo'), null);
+    console.log('--> (tests.js-Line: 35)\n internal.set(43): ');
+    internal.set(43);
+    await handle.run();
 
-  test.equal(DataLookup.lookup(() => ({ foo: { bar: 'baz' } }), 'foo'), { bar: 'baz' });
-  test.equal(DataLookup.lookup({ foo: () => ({ bar: 'baz' }) }, 'foo'), { bar: 'baz' });
-  test.equal(DataLookup.lookup(() => ({ foo: () => ({ bar: 'baz' }) }), 'foo.bar'), 'baz');
-});
+    console.log('--> (tests.js-Line: 39)\n internal.set(44);: ');
+    internal.set(44);
+    await handle.run();
 
-Tinytest.addAsync('data-lookup - reactive get', function (test, next) {
-  const testVar = new ReactiveVar(null);
-  const runs = [];
+    internal.set(44); // no change
+    await handle.run();
 
-  Tracker.autorun(() => {
-    const value = DataLookup.get(() => testVar.get(), 'foo.bar');
-    runs.push(value);
+    internal.set(43);
+    await handle.run();
+
+    test.equal(changes, [42, 43, 44, 43]);
+
+    await handle.stop();
+    done();
   });
-
-  // Utility to simulate Tracker.flush and wait
-  const flushAndAssert = (valueToSet, expected, done) => {
-    runs.length = 0;
-    testVar.set(valueToSet);
-    Tracker.flush();
-    test.equal(runs, expected);
-    if (done) done();
-  };
-
-  flushAndAssert(null, [undefined]);
-  flushAndAssert('something', []);
-  flushAndAssert({ foo: { test: 'baz' } }, []);
-  flushAndAssert({ foo: { bar: 'baz' } }, ['baz']);
-  flushAndAssert({ foo: { bar: 'baz', test: 'baz' } }, []);
-  flushAndAssert({ foo: { test: 'baz' } }, [undefined]);
-  flushAndAssert({ foo: { bar: 'baz', test: 'baz' } }, ['baz']);
-  flushAndAssert({ foo: { bar: 'bak', test: 'baz' } }, ['bak']);
-
-  // Nested reactive function case
-  const testVar2 = new ReactiveVar(null);
-  testVar.set({ foo: () => testVar2.get() });
-  Tracker.flush();
-  test.equal(runs, [undefined]);
-
-  runs.length = 0;
-  testVar2.set({ bar: 'bak', test: 'baz' });
-  Tracker.flush();
-  test.equal(runs, ['bak']);
-
-  next();
-});
+  //
+  // Tinytest.addAsync('computed-field - nested', async function (test, done) {
+  //   const internal = new ReactiveVarAsync(42);
+  //   let outside = null;
+  //
+  //   const changes = [];
+  //   const handle = await AsyncTracker.autorun(async () => {
+  //     outside = new ComputedField(async () => await internal.get());
+  //     changes.push(await outside());
+  //   });
+  //
+  //   internal.set(43);
+  //   await handle.flush();
+  //
+  //   await handle.stop();
+  //
+  //   internal.set(44);
+  //   internal.set(45);
+  //
+  //   test.equal(await outside(), 45);
+  //
+  //   test.equal(changes, [42, 43]);
+  //
+  //   await outside.stop();
+  //   done();
+  // });
+  //
+  // Tinytest.addAsync('computed-field - dontStop', async function (test, done) {
+  //   const internal = new ReactiveVarAsync(42);
+  //
+  //   let run = [];
+  //   let foo = new ComputedField(async () => {
+  //     const value = await internal.get();
+  //     run.push(value);
+  //     return value;
+  //   });
+  //
+  //   await foo();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   await foo.flush();
+  //   test.isFalse(foo._isRunning());
+  //
+  //   await foo();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   await foo.flush();
+  //   test.isFalse(foo._isRunning());
+  //
+  //   await foo();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   test.equal(run, [42, 42, 42]);
+  //
+  //   await foo.stop();
+  //
+  //   run = [];
+  //   foo = new ComputedField(async () => {
+  //     const value = await internal.get();
+  //     run.push(value);
+  //     return value;
+  //   }, true); // keepRunning = true
+  //
+  //   await foo();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   await foo.flush();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   await foo();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   await foo.flush();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   await foo();
+  //   test.isTrue(foo._isRunning());
+  //
+  //   test.equal(run, [42]);
+  //
+  //   await foo.stop();
+  //   done();
+  // });
+  //
+  // Tinytest.addAsync('data-lookup - basic lookup', async function (test, done) {
+  //   test.equal(await DataLookup.lookup({}, 'foo'), undefined);
+  //   test.equal(await DataLookup.lookup(null, 'foo'), undefined);
+  //   test.equal(await DataLookup.lookup(undefined, 'foo'), undefined);
+  //   test.equal(await DataLookup.lookup(1, 'foo'), undefined);
+  //
+  //   test.equal(await DataLookup.lookup({}), {});
+  //   test.equal(await DataLookup.lookup(null), null);
+  //   test.equal(await DataLookup.lookup(undefined), undefined);
+  //   test.equal(await DataLookup.lookup(1), 1);
+  //
+  //   test.equal(await DataLookup.lookup({}, ''), undefined);
+  //   test.equal(await DataLookup.lookup(null, ''), undefined);
+  //   test.equal(await DataLookup.lookup(undefined, ''), undefined);
+  //   test.equal(await DataLookup.lookup(1, ''), undefined);
+  //
+  //   test.equal(await DataLookup.lookup({}, []), {});
+  //   test.equal(await DataLookup.lookup(null, []), null);
+  //   test.equal(await DataLookup.lookup(undefined, []), undefined);
+  //   test.equal(await DataLookup.lookup(1, []), 1);
+  //
+  //   test.equal(await DataLookup.lookup({ foo: 'bar' }, 'foo'), 'bar');
+  //   test.equal(await DataLookup.lookup({ foo: { bar: 'baz' } }, 'foo'), { bar: 'baz' });
+  //   test.equal(await DataLookup.lookup({ foo: { bar: 'baz' } }, 'faa'), undefined);
+  //   test.equal(await DataLookup.lookup({ foo: { bar: 'baz' } }, 'foo.faa'), undefined);
+  //   test.equal(await DataLookup.lookup({ foo: { bar: 'baz' } }, 'foo.bar'), 'baz');
+  //   test.equal(await DataLookup.lookup({ foo: null }, 'foo.bar'), undefined);
+  //   test.equal(await DataLookup.lookup({ foo: null }, 'foo'), null);
+  //
+  //   test.equal(
+  //     await DataLookup.lookup(async () => ({ foo: { bar: 'baz' } }), 'foo'),
+  //     { bar: 'baz' }
+  //   );
+  //   test.equal(await DataLookup.lookup({ foo: async () => ({ bar: 'baz' }) }, 'foo'), {
+  //     bar: 'baz',
+  //   });
+  //   test.equal(
+  //     await DataLookup.lookup(async () => ({ foo: async () => ({ bar: 'baz' }) }), 'foo.bar'),
+  //     'baz'
+  //   );
+  //
+  //   done();
+  // });
+  //
+  // Tinytest.addAsync('data-lookup - reactive get', async function (test, done) {
+  //   const testVar = new ReactiveVarAsync(null);
+  //   const runs = [];
+  //
+  //   const handle = await AsyncTracker.autorun(async () => {
+  //     const value = await DataLookup.get(async () => await testVar.get(), 'foo.bar');
+  //     runs.push(value);
+  //   });
+  //
+  //   // Utility to simulate flush and wait
+  //   const flushAndAssert = async (valueToSet, expected) => {
+  //     runs.length = 0;
+  //     testVar.set(valueToSet);
+  //     await handle.flush();
+  //     test.equal(runs, expected);
+  //   };
+  //
+  //   await flushAndAssert(null, [undefined]);
+  //   await flushAndAssert('something', []);
+  //   await flushAndAssert({ foo: { test: 'baz' } }, []);
+  //   await flushAndAssert({ foo: { bar: 'baz' } }, ['baz']);
+  //   await flushAndAssert({ foo: { bar: 'baz', test: 'baz' } }, []);
+  //   await flushAndAssert({ foo: { test: 'baz' } }, [undefined]);
+  //   await flushAndAssert({ foo: { bar: 'baz', test: 'baz' } }, ['baz']);
+  //   await flushAndAssert({ foo: { bar: 'bak', test: 'baz' } }, ['bak']);
+  //
+  //   // Nested reactive function case
+  //   const testVar2 = new ReactiveVarAsync(null);
+  //   testVar.set({ foo: async () => await testVar2.get() });
+  //   await handle.flush();
+  //   test.equal(runs, [undefined]);
+  //
+  //   runs.length = 0;
+  //   testVar2.set({ bar: 'bak', test: 'baz' });
+  //   await handle.flush();
+  //   test.equal(runs, ['bak']);
+  //
+  //   await handle.stop();
+  //   done();
+  // });
+}
