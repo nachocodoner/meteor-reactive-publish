@@ -220,6 +220,15 @@ class ReactiveVarAsync {
     await this.dep.changed();
   }
 
+  setSync(newValue) {
+    const equals = this.equalsFunc || ReactiveVarAsync._isEqual;
+    if (equals(this.curValue, newValue)) {
+      return;
+    }
+    this.curValue = newValue;
+    this.dep.changedSync();
+  }
+
   toString() {
     return `ReactiveVarAsync{${this.get()}}`;
   }
