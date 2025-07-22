@@ -28,12 +28,27 @@ class AsyncTrackerDependency {
     return true;
   }
 
-  changed() {
-    // Schedule a full rerun (invalidate+flush) on each dependent
-    for (const comp of this._dependents.values()) {
-      Meteor.defer(() => {
-        comp.run().catch((err) => console.error(err));
-      });
+  async changed() {
+    // Invalidate all dependents
+    const comps = Array.from(this._dependents.values());
+    try {
+      for await (const comp of comps) {
+        await comp.run();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  changedSync() {
+    // Invalidate all dependents
+    const comps = Array.from(this._dependents.values());
+    try {
+      for (const comp of comps) {
+        Meteor.defer(() => comp.run());
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -53,6 +68,7 @@ class AsyncTrackerComputation {
     this.stopped = false;
     this.invalidated = false;
     this._running = false;
+    this._parent = options.parent || AsyncTracker.currentComputation();
 
     this._beforeRunCallbacks = [];
     this._afterRunCallbacks = [];
@@ -157,7 +173,25 @@ class AsyncTrackerComputation {
 }
 
 const AsyncTracker = {
-  autorun: (f, opts) => new AsyncTrackerComputation(f, opts),
+  autorun: (f, options = {}) => {
+    if (typeof f !== 'function') {
+      throw new Error('AsyncTracker.autorun requires a function argument');
+    }
+
+    const parent = AsyncTracker.currentComputation();
+    const computation = new AsyncTrackerComputation(f, {
+      ...options,
+      parent,
+    });
+
+    if (parent) {
+      parent.onInvalidate(() => {
+        computation.stop();
+      });
+    }
+
+    return computation;
+  },
   currentComputation: () => asyncLocalStorage.getStore(),
   Dependency: AsyncTrackerDependency,
   nonreactive: async (f) =>
@@ -165,39 +199,39 @@ const AsyncTracker = {
     asyncLocalStorage.run(null, () => f()),
 };
 
-const ReactiveVarAsync = function (initialValue, equalsFunc) {
-  if (!(this instanceof ReactiveVarAsync)) {
-    return new ReactiveVarAsync(initialValue, equalsFunc);
+class ReactiveVarAsync {
+  constructor(initialValue, equalsFunc) {
+    this.curValue = initialValue;
+    this.equalsFunc = equalsFunc;
+    this.dep = new AsyncTracker.Dependency();
   }
-  this.curValue = initialValue;
-  this.equalsFunc = equalsFunc;
-  this.dep = new AsyncTracker.Dependency();
-};
 
-ReactiveVarAsync._isEqual = function (a, b) {
-  if (a !== b) return false;
-  return !a || ['number', 'boolean', 'string'].includes(typeof a);
-};
+  get() {
+    this.dep.depend();
+    return this.curValue;
+  }
 
-ReactiveVarAsync.prototype.get = function () {
-  this.dep.depend();
-  return this.curValue;
-};
+  async set(newValue) {
+    const equals = this.equalsFunc || ReactiveVarAsync._isEqual;
+    if (equals(this.curValue, newValue)) {
+      return;
+    }
+    this.curValue = newValue;
+    await this.dep.changed();
+  }
 
-ReactiveVarAsync.prototype.set = function (newValue) {
-  const oldValue = this.curValue;
-  const equals = this.equalsFunc || ReactiveVarAsync._isEqual;
-  if (equals(oldValue, newValue)) return;
-  this.curValue = newValue;
-  this.dep.changed();
-};
+  toString() {
+    return `ReactiveVarAsync{${this.get()}}`;
+  }
 
-ReactiveVarAsync.prototype.toString = function () {
-  return 'ReactiveVarAsync{' + this.get() + '}';
-};
+  _numListeners() {
+    return this.dep._dependents.size;
+  }
 
-ReactiveVarAsync.prototype._numListeners = function () {
-  return this.dep._dependents.size;
-};
+  static _isEqual(a, b) {
+    if (a !== b) return false;
+    return !a || ['number', 'boolean', 'string'].includes(typeof a);
+  }
+}
 
 export { AsyncTracker, ReactiveVarAsync };

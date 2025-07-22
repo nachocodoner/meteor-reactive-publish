@@ -27,23 +27,23 @@ if (Meteor.isServer) {
 
     const changes = [];
     const handle = await AsyncTracker.autorun(async () => {
-      // console.log('--> (tests.js-Line: 31)\n await foo(): ', await foo());
       changes.push(await foo());
+      console.log('--> (tests.js-Line: 31)\n changes: ', changes);
     });
 
     console.log('--> (tests.js-Line: 35)\n internal.set(43): ');
-    internal.set(43);
-    await handle.run();
+    await internal.set(43);
+    await handle.flush();
 
     console.log('--> (tests.js-Line: 39)\n internal.set(44);: ');
-    internal.set(44);
-    await handle.run();
+    await internal.set(44);
+    await handle.flush();
 
-    internal.set(44); // no change
-    await handle.run();
+    await internal.set(44); // no change
+    await handle.flush();
 
-    internal.set(43);
-    await handle.run();
+    await internal.set(43);
+    await handle.flush();
 
     test.equal(changes, [42, 43, 44, 43]);
 

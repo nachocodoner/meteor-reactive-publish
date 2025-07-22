@@ -36,7 +36,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
         let computationIds = [];
         let fetchedDocs = [];
         let handleObserver;
-        const trackerComputation = AsyncTracker.autorun(
+        const trackerComputation = await AsyncTracker.autorun(
           async function (computation) {
             countReactive++;
             const TestCursor = Test.find({});
@@ -112,7 +112,7 @@ import { AsyncTracker } from 'meteor/server-autorun';
         );
         test.equal(trackerComputation._cursorCache.size, 2);
 
-        trackerComputation.stop();
+        await trackerComputation.stop();
         test.equal(countStop, 1);
         test.equal(trackerComputation._cursorCache.size, 0);
 

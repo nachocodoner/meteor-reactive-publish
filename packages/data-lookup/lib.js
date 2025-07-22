@@ -1,10 +1,8 @@
-import { Tracker } from 'meteor/tracker';
 import { AsyncTracker, ReactiveVarAsync } from 'meteor/server-autorun';
 
 export class ComputedField {
   constructor(func, equalsFunc, dontStop) {
-    // To support passing boolean as the second argument.
-    if (_.isBoolean(equalsFunc)) {
+    if (typeof equalsFunc === 'boolean') {
       dontStop = equalsFunc;
       equalsFunc = null;
     }
@@ -115,15 +113,11 @@ export class ComputedField {
       // We always flush so that you get the most recent value. This is a noop if autorun was not invalidated.
       await getter.flush();
 
-      // TODO: is neecesary?
-      return new Promise((resolve) => {
-        Meteor.defer(() => {
-          const value = lastValue.get();
-          // Store the resolved value for toString
-          lastResolvedValue = value;
-          resolve(value);
-        });
-      });
+      const value = lastValue.get();
+      // Store the resolved value for toString
+      lastResolvedValue = value;
+
+      return lastResolvedValue;
     };
 
     // We mingle the prototype so that getter instanceof ComputedField is true.
