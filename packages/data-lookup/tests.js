@@ -5,20 +5,20 @@ import { AsyncTracker, ReactiveVarAsync } from 'meteor/server-autorun';
 import { DataLookup, ComputedField } from './lib.js'; // Adjust path as needed
 
 if (Meteor.isServer) {
-  // Tinytest.addAsync('computed-field - basic', async function (test, done) {
-  //   const foo = new ComputedField(async () => 42);
-  //
-  //   test.equal(await foo(), 42);
-  //   test.instanceOf(foo, ComputedField);
-  //   test.equal(foo.constructor, ComputedField);
-  //   test.equal(typeof foo, 'function');
-  //
-  //   test.equal(await foo.apply(), 42);
-  //   test.equal(await foo.call(), 42);
-  //   test.equal(`${foo}`, 'ComputedField{42}');
-  //
-  //   done();
-  // });
+  Tinytest.addAsync('computed-field - basic', async function (test, done) {
+    const foo = new ComputedField(async () => 42);
+
+    test.equal(await foo(), 42);
+    test.instanceOf(foo, ComputedField);
+    test.equal(foo.constructor, ComputedField);
+    test.equal(typeof foo, 'function');
+
+    test.equal(await foo.apply(), 42);
+    test.equal(await foo.call(), 42);
+    test.equal(`${foo}`, 'ComputedField{42}');
+
+    done();
+  });
 
   Tinytest.addAsync('computed-field - reactive', async function (test, done) {
     const internal = new ReactiveVarAsync(42);
@@ -28,14 +28,11 @@ if (Meteor.isServer) {
     const changes = [];
     const handle = await AsyncTracker.autorun(async () => {
       changes.push(await foo());
-      console.log('--> (tests.js-Line: 31)\n changes: ', changes);
     });
 
-    console.log('--> (tests.js-Line: 35)\n internal.set(43): ');
     await internal.set(43);
     await handle.flush();
 
-    console.log('--> (tests.js-Line: 39)\n internal.set(44);: ');
     await internal.set(44);
     await handle.flush();
 
