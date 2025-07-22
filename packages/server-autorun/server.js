@@ -1,3 +1,4 @@
+// async-tracker-server.js
 import { AsyncLocalStorage } from 'async_hooks';
 const asyncLocalStorage = new AsyncLocalStorage();
 
@@ -28,8 +29,11 @@ class AsyncTrackerDependency {
   }
 
   changed() {
+    // Schedule a full rerun (invalidate+flush) on each dependent
     for (const comp of this._dependents.values()) {
-      Meteor.defer(() => comp.invalidate());
+      Meteor.defer(() => {
+        comp.run().catch((err) => console.error(err));
+      });
     }
   }
 
@@ -38,41 +42,33 @@ class AsyncTrackerDependency {
   }
 }
 
-var nextId = 1;
+let nextId = 1;
 
 class AsyncTrackerComputation {
   constructor(asyncFunc, options = {}) {
     this._id = nextId++;
-
     this.firstRun = true;
-
     this.asyncFunc = asyncFunc;
     this.options = options;
     this.stopped = false;
     this.invalidated = false;
     this._running = false;
-    this._parent = AsyncTracker.currentComputation();
 
     this._beforeRunCallbacks = [];
     this._afterRunCallbacks = [];
-
     this._onInvalidateCallbacks = [];
     this._onStopCallbacks = [];
     this._cursorCache = new Map();
 
+    // perform first run
     this._run();
   }
 
   beforeRun(fn) {
-    if (typeof fn === 'function') {
-      this._beforeRunCallbacks.push(fn);
-    }
+    this._beforeRunCallbacks.push(fn);
   }
-
   afterRun(fn) {
-    if (typeof fn === 'function') {
-      this._afterRunCallbacks.push(fn);
-    }
+    this._afterRunCallbacks.push(fn);
   }
 
   async _run() {
@@ -82,18 +78,16 @@ class AsyncTrackerComputation {
       try {
         fn(this);
       } catch (e) {
-        console.error('beforeRun error', e);
+        console.error(e);
       }
     });
 
     this.invalidated = false;
     this._running = true;
-
     try {
       await asyncLocalStorage.run(this, () => this.asyncFunc(this));
     } catch (err) {
-      if (this.options.onError) this.options.onError(err);
-      else console.error('AsyncTracker computation error:', err);
+      (this.options.onError || console.error)('AsyncTracker error:', err);
     } finally {
       this._running = false;
     }
@@ -102,7 +96,7 @@ class AsyncTrackerComputation {
       try {
         fn(this);
       } catch (e) {
-        console.error('afterRun error', e);
+        console.error(e);
       }
     });
 
@@ -113,45 +107,52 @@ class AsyncTrackerComputation {
     this.firstRun = false;
   }
 
-  async invalidate() {
+  invalidate() {
     if (this.stopped) return;
-    this.invalidated = true;
-    this._onInvalidateCallbacks.forEach((fn) => fn(this));
-    if (!this._running) {
-      await this._run();
+    if (!this.invalidated) {
+      this.invalidated = true;
+      this._onInvalidateCallbacks.forEach((fn) => {
+        try {
+          fn(this);
+        } catch (e) {
+          console.error(e);
+        }
+      });
     }
   }
 
   onInvalidate(fn) {
-    if (typeof fn === 'function') {
-      this._onInvalidateCallbacks.push(fn);
-    }
+    this._onInvalidateCallbacks.push(fn);
   }
-
   onStop(fn) {
-    if (typeof fn === 'function') {
-      this._onStopCallbacks.push(fn);
-    }
+    this._onStopCallbacks.push(fn);
   }
 
   stop() {
     if (this.stopped) return;
     this.stopped = true;
     this._cursorCache.clear();
-    this._onStopCallbacks.forEach((fn) => fn(this));
+    this._onStopCallbacks.forEach((fn) => {
+      try {
+        fn(this);
+      } catch (e) {
+        console.error(e);
+      }
+    });
   }
 
+  /** Rerun once if invalidated (no‐op if running) */
   async flush() {
     if (this._running) return;
-
     if (this.invalidated) {
       await this._run();
     }
   }
 
+  /** Force an immediate re‐run */
   async run() {
-    this.invalidated = true;
-    await this._run();
+    this.invalidate();
+    await this.flush();
   }
 }
 
@@ -159,32 +160,23 @@ const AsyncTracker = {
   autorun: (f, opts) => new AsyncTrackerComputation(f, opts),
   currentComputation: () => asyncLocalStorage.getStore(),
   Dependency: AsyncTrackerDependency,
-  nonreactive: async (f) => asyncLocalStorage.run(null, () => f()),
+  nonreactive: async (f) =>
+    // run f with no current computation
+    asyncLocalStorage.run(null, () => f()),
 };
 
 const ReactiveVarAsync = function (initialValue, equalsFunc) {
   if (!(this instanceof ReactiveVarAsync)) {
     return new ReactiveVarAsync(initialValue, equalsFunc);
   }
-
   this.curValue = initialValue;
   this.equalsFunc = equalsFunc;
   this.dep = new AsyncTracker.Dependency();
 };
 
-ReactiveVarAsync._isEqual = function (oldValue, newValue) {
-  const a = oldValue,
-    b = newValue;
-  if (a !== b) {
-    return false;
-  } else {
-    return (
-      !a ||
-      typeof a === 'number' ||
-      typeof a === 'boolean' ||
-      typeof a === 'string'
-    );
-  }
+ReactiveVarAsync._isEqual = function (a, b) {
+  if (a !== b) return false;
+  return !a || ['number', 'boolean', 'string'].includes(typeof a);
 };
 
 ReactiveVarAsync.prototype.get = function () {
@@ -194,13 +186,8 @@ ReactiveVarAsync.prototype.get = function () {
 
 ReactiveVarAsync.prototype.set = function (newValue) {
   const oldValue = this.curValue;
-
   const equals = this.equalsFunc || ReactiveVarAsync._isEqual;
-
-  if (equals(oldValue, newValue)) {
-    return;
-  }
-
+  if (equals(oldValue, newValue)) return;
   this.curValue = newValue;
   this.dep.changed();
 };

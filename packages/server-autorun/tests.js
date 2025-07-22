@@ -8,7 +8,10 @@ Tinytest.addAsync(
     const dep = new AsyncTracker.Dependency();
 
     // Initially should have no dependents
-    test.isFalse(dep.hasDependents(), 'Dependency should start with no dependents');
+    test.isFalse(
+      dep.hasDependents(),
+      'Dependency should start with no dependents'
+    );
 
     // Create a computation that depends on this dependency
     let dependencyChanged = false;
@@ -21,7 +24,10 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Should now have dependents
-    test.isTrue(dep.hasDependents(), 'Dependency should have dependents after depend() is called');
+    test.isTrue(
+      dep.hasDependents(),
+      'Dependency should have dependents after depend() is called'
+    );
 
     // Reset the flag
     dependencyChanged = false;
@@ -33,7 +39,10 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // The computation should have rerun
-    test.isTrue(dependencyChanged, 'Computation should rerun when dependency is changed');
+    test.isTrue(
+      dependencyChanged,
+      'Computation should rerun when dependency is changed'
+    );
 
     // Stop the computation
     computation.stop();
@@ -42,7 +51,10 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Should no longer have dependents
-    test.isFalse(dep.hasDependents(), 'Dependency should not have dependents after computation is stopped');
+    test.isFalse(
+      dep.hasDependents(),
+      'Dependency should not have dependents after computation is stopped'
+    );
   }
 );
 
@@ -57,7 +69,10 @@ Tinytest.addAsync(
     // Create a computation
     const computation = AsyncTracker.autorun(async (comp) => {
       runCount++;
-      test.isTrue(comp.firstRun === (runCount === 1), 'firstRun should be true only on first run');
+      test.isTrue(
+        comp.firstRun === (runCount === 1),
+        'firstRun should be true only on first run'
+      );
     });
 
     // Set up invalidate callback
@@ -75,18 +90,28 @@ Tinytest.addAsync(
 
     // Check initial state
     test.equal(runCount, 1, 'Computation should run once initially');
-    test.isFalse(invalidateCallbackCalled, 'Invalidate callback should not be called initially');
-    test.isFalse(stopCallbackCalled, 'Stop callback should not be called initially');
+    test.isFalse(
+      invalidateCallbackCalled,
+      'Invalidate callback should not be called initially'
+    );
+    test.isFalse(
+      stopCallbackCalled,
+      'Stop callback should not be called initially'
+    );
 
     // Invalidate the computation
-    await computation.invalidate();
+    computation.invalidate();
+    await computation.flush();
 
     // Wait for rerun
     await Meteor._sleepForMs(50);
 
     // Check state after invalidation
     test.equal(runCount, 2, 'Computation should run again after invalidation');
-    test.isTrue(invalidateCallbackCalled, 'Invalidate callback should be called');
+    test.isTrue(
+      invalidateCallbackCalled,
+      'Invalidate callback should be called'
+    );
     test.isFalse(stopCallbackCalled, 'Stop callback should not be called yet');
 
     // Stop the computation
@@ -96,18 +121,25 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check state after stopping
-    test.isTrue(stopCallbackCalled, 'Stop callback should be called after stopping');
+    test.isTrue(
+      stopCallbackCalled,
+      'Stop callback should be called after stopping'
+    );
 
     // Invalidate again (should not cause a rerun)
     invalidateCallbackCalled = false;
-    await computation.invalidate();
+    computation.invalidate();
+    await computation.flush();
 
     // Wait to ensure no rerun happens
     await Meteor._sleepForMs(50);
 
     // Check that no rerun occurred
     test.equal(runCount, 2, 'Computation should not rerun after being stopped');
-    test.isFalse(invalidateCallbackCalled, 'Invalidate callback should not be called after stopping');
+    test.isFalse(
+      invalidateCallbackCalled,
+      'Invalidate callback should not be called after stopping'
+    );
   }
 );
 
@@ -120,47 +152,36 @@ Tinytest.addAsync(
     let outerRunCount = 0;
     let innerRunCount = 0;
 
-    // Create an outer computation
-    const outerComputation = AsyncTracker.autorun(async () => {
+    // Outer computation
+    const outer = AsyncTracker.autorun(async () => {
       outerRunCount++;
-
-      // This should depend on the dependency
       dep.depend();
 
-      // Run a non-reactive function
+      // run without tracking
       await AsyncTracker.nonreactive(async () => {
         nonreactiveRan = true;
         innerRunCount++;
-
-        // This should not establish a dependency
+        // should *not* re-trigger the outer dep
         dep.depend();
       });
     });
 
-    // Wait for initial run
+    // initial pass
     await Meteor._sleepForMs(50);
+    test.equal(outerRunCount, 1);
+    test.equal(innerRunCount, 1);
+    test.isTrue(nonreactiveRan);
 
-    // Check initial state
-    test.equal(outerRunCount, 1, 'Outer computation should run once initially');
-    test.equal(innerRunCount, 1, 'Inner nonreactive function should run once initially');
-    test.isTrue(nonreactiveRan, 'Nonreactive function should have run');
-
-    // Reset flag
     nonreactiveRan = false;
-
-    // Trigger the dependency to change
+    // flip the dep; should auto‐run outer (and inner via await nonreactive)
     dep.changed();
 
-    // Wait for rerun
     await Meteor._sleepForMs(50);
+    test.equal(outerRunCount, 2);
+    test.equal(innerRunCount, 2);
+    test.isTrue(nonreactiveRan);
 
-    // Check state after dependency change
-    test.equal(outerRunCount, 2, 'Outer computation should rerun after dependency change');
-    test.equal(innerRunCount, 2, 'Inner nonreactive function should run again as part of outer computation');
-    test.isTrue(nonreactiveRan, 'Nonreactive function should have run again');
-
-    // Clean up
-    outerComputation.stop();
+    outer.stop();
   }
 );
 
@@ -192,11 +213,16 @@ Tinytest.addAsync(
 
     // Check initial state
     test.equal(runCount, 1, 'Computation should run once initially');
-    test.equal(beforeRunCount, 0, 'beforeRun should not be called for initial run');
+    test.equal(
+      beforeRunCount,
+      0,
+      'beforeRun should not be called for initial run'
+    );
     test.equal(afterRunCount, 1, 'afterRun should be called after initial run');
 
     // Invalidate the computation
-    await computation.invalidate();
+    computation.invalidate();
+    await computation.flush();
 
     // Wait for rerun
     await Meteor._sleepForMs(50);
@@ -214,7 +240,11 @@ Tinytest.addAsync(
 
     // Check state after manual run
     test.equal(runCount, 3, 'Computation should run again after manual run');
-    test.equal(beforeRunCount, 2, 'beforeRun should be called before manual run');
+    test.equal(
+      beforeRunCount,
+      2,
+      'beforeRun should be called before manual run'
+    );
     test.equal(afterRunCount, 3, 'afterRun should be called after manual run');
 
     // Clean up
@@ -246,7 +276,11 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check that no rerun occurred
-    test.equal(runCount, 1, 'Computation should not rerun after flush if not invalidated');
+    test.equal(
+      runCount,
+      1,
+      'Computation should not rerun after flush if not invalidated'
+    );
 
     // Invalidate but don't let it rerun automatically
     computation.invalidated = true;
@@ -258,7 +292,11 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check that a rerun occurred
-    test.equal(runCount, 2, 'Computation should rerun after flush if invalidated');
+    test.equal(
+      runCount,
+      2,
+      'Computation should rerun after flush if invalidated'
+    );
 
     // Clean up
     computation.stop();
@@ -273,7 +311,11 @@ Tinytest.addAsync(
     const reactiveVar = new ReactiveVarAsync('initial value');
 
     // Test get method
-    test.equal(reactiveVar.get(), 'initial value', 'get() should return the initial value');
+    test.equal(
+      reactiveVar.get(),
+      'initial value',
+      'get() should return the initial value'
+    );
 
     // Test dependency tracking
     let value;
@@ -289,7 +331,11 @@ Tinytest.addAsync(
 
     // Check initial state
     test.equal(runCount, 1, 'Computation should run once initially');
-    test.equal(value, 'initial value', 'Computation should get the initial value');
+    test.equal(
+      value,
+      'initial value',
+      'Computation should get the initial value'
+    );
 
     // Clean up
     computation.stop();
@@ -315,7 +361,11 @@ Tinytest.addAsync(
 
     // Check initial state
     test.equal(runCount, 1, 'Computation should run once initially');
-    test.equal(value, 'initial value', 'Computation should get the initial value');
+    test.equal(
+      value,
+      'initial value',
+      'Computation should get the initial value'
+    );
 
     // Set a new value
     reactiveVar.set('new value');
@@ -334,7 +384,11 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check that no rerun occurred
-    test.equal(runCount, 2, 'Computation should not rerun when setting the same value');
+    test.equal(
+      runCount,
+      2,
+      'Computation should not rerun when setting the same value'
+    );
 
     // Clean up
     computation.stop();
@@ -347,25 +401,52 @@ Tinytest.addAsync(
     // Test _isEqual with primitive values
     test.isTrue(ReactiveVarAsync._isEqual(1, 1), 'Numbers should be equal');
     test.isTrue(ReactiveVarAsync._isEqual('a', 'a'), 'Strings should be equal');
-    test.isTrue(ReactiveVarAsync._isEqual(true, true), 'Booleans should be equal');
-    test.isTrue(ReactiveVarAsync._isEqual(null, null), 'Null values should be equal');
+    test.isTrue(
+      ReactiveVarAsync._isEqual(true, true),
+      'Booleans should be equal'
+    );
+    test.isTrue(
+      ReactiveVarAsync._isEqual(null, null),
+      'Null values should be equal'
+    );
 
     // Test _isEqual with different values
-    test.isFalse(ReactiveVarAsync._isEqual(1, 2), 'Different numbers should not be equal');
-    test.isFalse(ReactiveVarAsync._isEqual('a', 'b'), 'Different strings should not be equal');
-    test.isFalse(ReactiveVarAsync._isEqual(true, false), 'Different booleans should not be equal');
+    test.isFalse(
+      ReactiveVarAsync._isEqual(1, 2),
+      'Different numbers should not be equal'
+    );
+    test.isFalse(
+      ReactiveVarAsync._isEqual('a', 'b'),
+      'Different strings should not be equal'
+    );
+    test.isFalse(
+      ReactiveVarAsync._isEqual(true, false),
+      'Different booleans should not be equal'
+    );
 
     // Test _isEqual with objects (should return false even for identical objects)
     const obj1 = { a: 1 };
     const obj2 = { a: 1 };
-    test.isFalse(ReactiveVarAsync._isEqual(obj1, obj2), 'Objects should not be equal even with same content');
-    test.isFalse(ReactiveVarAsync._isEqual(obj1, obj1), 'Same object reference should not be equal (not primitive)');
+    test.isFalse(
+      ReactiveVarAsync._isEqual(obj1, obj2),
+      'Objects should not be equal even with same content'
+    );
+    test.isFalse(
+      ReactiveVarAsync._isEqual(obj1, obj1),
+      'Same object reference should not be equal (not primitive)'
+    );
 
     // Test _isEqual with arrays (should return false even for identical arrays)
     const arr1 = [1, 2, 3];
     const arr2 = [1, 2, 3];
-    test.isFalse(ReactiveVarAsync._isEqual(arr1, arr2), 'Arrays should not be equal even with same content');
-    test.isFalse(ReactiveVarAsync._isEqual(arr1, arr1), 'Same array reference should not be equal (not primitive)');
+    test.isFalse(
+      ReactiveVarAsync._isEqual(arr1, arr2),
+      'Arrays should not be equal even with same content'
+    );
+    test.isFalse(
+      ReactiveVarAsync._isEqual(arr1, arr1),
+      'Same array reference should not be equal (not primitive)'
+    );
   }
 );
 
@@ -376,7 +457,10 @@ Tinytest.addAsync(
     const customEquals = (a, b) => a && b && a.id === b.id;
 
     // Create reactive var with custom equals function
-    const reactiveVar = new ReactiveVarAsync({ id: 1, value: 'a' }, customEquals);
+    const reactiveVar = new ReactiveVarAsync(
+      { id: 1, value: 'a' },
+      customEquals
+    );
 
     let value;
     let runCount = 0;
@@ -400,7 +484,11 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check that no rerun occurred
-    test.equal(runCount, 1, 'Computation should not rerun when setting object with same id');
+    test.equal(
+      runCount,
+      1,
+      'Computation should not rerun when setting object with same id'
+    );
 
     // Set a new object with different id (should cause a rerun)
     reactiveVar.set({ id: 2, value: 'c' });
@@ -409,7 +497,11 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check state after set
-    test.equal(runCount, 2, 'Computation should rerun when setting object with different id');
+    test.equal(
+      runCount,
+      2,
+      'Computation should rerun when setting object with different id'
+    );
     test.equal(value.id, 2, 'Computation should get the new value');
 
     // Clean up
@@ -422,10 +514,18 @@ Tinytest.addAsync(
   async function (test) {
     // Test toString
     const reactiveVar = new ReactiveVarAsync('test value');
-    test.equal(reactiveVar.toString(), 'ReactiveVarAsync{test value}', 'toString should format correctly');
+    test.equal(
+      reactiveVar.toString(),
+      'ReactiveVarAsync{test value}',
+      'toString should format correctly'
+    );
 
     // Test _numListeners
-    test.equal(reactiveVar._numListeners(), 0, 'Should have no listeners initially');
+    test.equal(
+      reactiveVar._numListeners(),
+      0,
+      'Should have no listeners initially'
+    );
 
     // Add a listener
     const computation = AsyncTracker.autorun(async () => {
@@ -436,7 +536,11 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check listener count
-    test.equal(reactiveVar._numListeners(), 1, 'Should have one listener after computation runs');
+    test.equal(
+      reactiveVar._numListeners(),
+      1,
+      'Should have one listener after computation runs'
+    );
 
     // Stop the computation
     computation.stop();
@@ -445,6 +549,10 @@ Tinytest.addAsync(
     await Meteor._sleepForMs(50);
 
     // Check listener count after stopping
-    test.equal(reactiveVar._numListeners(), 0, 'Should have no listeners after computation stops');
+    test.equal(
+      reactiveVar._numListeners(),
+      0,
+      'Should have no listeners after computation stops'
+    );
   }
 );
