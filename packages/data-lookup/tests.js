@@ -47,32 +47,32 @@ if (Meteor.isServer) {
     await handle.stop();
     done();
   });
-  //
-  // Tinytest.addAsync('computed-field - nested', async function (test, done) {
-  //   const internal = new ReactiveVarAsync(42);
-  //   let outside = null;
-  //
-  //   const changes = [];
-  //   const handle = await AsyncTracker.autorun(async () => {
-  //     outside = new ComputedField(async () => await internal.get());
-  //     changes.push(await outside());
-  //   });
-  //
-  //   internal.set(43);
-  //   await handle.flush();
-  //
-  //   await handle.stop();
-  //
-  //   internal.set(44);
-  //   internal.set(45);
-  //
-  //   test.equal(await outside(), 45);
-  //
-  //   test.equal(changes, [42, 43]);
-  //
-  //   await outside.stop();
-  //   done();
-  // });
+
+  Tinytest.addAsync('computed-field - nested', async function (test, done) {
+    const internal = new ReactiveVarAsync(42);
+    let outside = null;
+
+    const changes = [];
+    const handle = await AsyncTracker.autorun(async () => {
+      outside = new ComputedField(async () => await internal.get());
+      changes.push(await outside());
+    });
+
+    await internal.set(43);
+    await handle.flush();
+
+    await handle.stop();
+
+    await internal.set(44);
+    await internal.set(45);
+
+    test.equal(await outside(), 45);
+
+    test.equal(changes, [42, 43]);
+
+    await outside.stop();
+    done();
+  });
   //
   // Tinytest.addAsync('computed-field - dontStop', async function (test, done) {
   //   const internal = new ReactiveVarAsync(42);
