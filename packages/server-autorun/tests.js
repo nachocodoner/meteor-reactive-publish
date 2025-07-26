@@ -58,9 +58,9 @@ Tinytest.addAsync(
   }
 );
 
-// Tests for AsyncTrackerComputation
+// Tests for AsyncTracker
 Tinytest.addAsync(
-  'server-autorun - AsyncTrackerComputation - autorun, invalidate, stop',
+  'server-autorun - AsyncTracker - autorun, invalidate, stop',
   async function (test) {
     let runCount = 0;
     let invalidateCallbackCalled = false;
@@ -185,9 +185,9 @@ Tinytest.addAsync(
   }
 );
 
-// Tests for AsyncTrackerComputation - beforeRun and afterRun
+// Tests for AsyncTracker - beforeRun and afterRun
 Tinytest.addAsync(
-  'server-autorun - AsyncTrackerComputation - beforeRun and afterRun',
+  'server-autorun - AsyncTracker - beforeRun and afterRun',
   async function (test) {
     let runCount = 0;
     let beforeRunCount = 0;
@@ -252,9 +252,9 @@ Tinytest.addAsync(
   }
 );
 
-// Tests for AsyncTrackerComputation - flush
+// Tests for AsyncTracker - flush
 Tinytest.addAsync(
-  'server-autorun - AsyncTrackerComputation - flush',
+  'server-autorun - AsyncTracker - flush',
   async function (test) {
     let runCount = 0;
 
@@ -300,6 +300,124 @@ Tinytest.addAsync(
 
     // Clean up
     computation.stop();
+  }
+);
+
+// Tests for nested autoruns
+Tinytest.addAsync(
+  'server-autorun - AsyncTracker - nested autoruns',
+  async function (test) {
+    // Create reactive variables to trigger reruns
+    const outerVar = new ReactiveVarAsync('outer');
+    const innerVar = new ReactiveVarAsync('inner');
+
+    // Track run counts
+    let outerRunCount = 0;
+    let innerRunCount = 0;
+    let innerComputationCount = 0;
+
+    // Reference to the current inner computation
+    let currentInnerComputation = null;
+
+    // Create outer computation
+    const outerComputation = AsyncTracker.autorun(async () => {
+      outerRunCount++;
+      outerVar.get(); // depend on outerVar
+
+      // Create nested computation
+      currentInnerComputation = AsyncTracker.autorun(async () => {
+        innerRunCount++;
+        innerVar.get(); // depend on innerVar
+      });
+      innerComputationCount++; // Increment when a new inner computation is created
+    });
+
+    // Wait for initial runs
+    await Meteor._sleepForMs(50);
+
+    // Check initial state
+    test.equal(outerRunCount, 1, 'Outer computation should run once initially');
+    test.equal(innerRunCount, 1, 'Inner computation should run once initially');
+    test.equal(
+      innerComputationCount,
+      1,
+      'Should have created one inner computation'
+    );
+
+    // Change inner reactive variable
+    await innerVar.set('inner updated');
+
+    // Wait for reruns
+    await Meteor._sleepForMs(50);
+
+    // Check state after inner change
+    test.equal(
+      outerRunCount,
+      1,
+      'Outer computation should not rerun when inner var changes'
+    );
+    test.equal(
+      innerRunCount,
+      2,
+      'Inner computation should rerun when inner var changes'
+    );
+    test.equal(
+      innerComputationCount,
+      1,
+      'Should still have the same inner computation'
+    );
+
+    // Change outer reactive variable
+    await outerVar.set('outer updated');
+
+    // Wait for reruns
+    await Meteor._sleepForMs(50);
+
+    // Check state after outer change
+    test.equal(
+      outerRunCount,
+      2,
+      'Outer computation should rerun when outer var changes'
+    );
+    test.equal(
+      innerRunCount,
+      3,
+      'Inner computation should run again after outer rerun'
+    );
+    test.equal(
+      innerComputationCount,
+      2,
+      'Should have created a new inner computation'
+    );
+
+    // Change inner reactive variable again
+    await innerVar.set('inner updated again');
+
+    // Wait for reruns
+    await Meteor._sleepForMs(50);
+
+    // Check state after second inner change
+    test.equal(
+      outerRunCount,
+      2,
+      'Outer computation should not rerun when inner var changes again'
+    );
+    test.equal(
+      innerRunCount,
+      4,
+      'Inner computation should rerun when inner var changes again'
+    );
+    test.equal(
+      innerComputationCount,
+      2,
+      'Should still have the same second inner computation'
+    );
+
+    // Clean up
+    outerComputation.stop();
+    if (currentInnerComputation) {
+      currentInnerComputation.stop();
+    }
   }
 );
 
