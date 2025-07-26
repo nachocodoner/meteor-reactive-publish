@@ -213,7 +213,6 @@ export const extendPublish = (name, publishFunction, options) => {
     // so we simply return null if no active computation.
     publish._currentComputation = function () {
       const currentComputation = AsyncTracker.currentComputation();
-      if (currentComputation?._parent) return currentComputation._parent;
       if (currentComputation) {
         return currentComputation;
       } else {
@@ -275,24 +274,17 @@ export const extendPublish = (name, publishFunction, options) => {
                   .filter(([compId]) => compId !== String(computation._id))
                   .map(([, docs]) => Object.keys(docs[collectionName] || {}))
               );
-              const diffIds = difference(
-                currentlyPublishedDocumentIds,
-                currentComputationAddedDocumentIds,
-                otherComputationsAddedDocumentsIds,
-                otherComputationsPreviouslyAddedDocumentsIds
-              );
-              console.log(
-                '--> (server.js-Line: 281)\n diffIds: ',
-                this._name,
-                diffIds,
-                diffIds.length,
-                'currentlyPublishedDocumentIds',
-                currentlyPublishedDocumentIds?.length,
-                currentComputationAddedDocumentIds?.length,
-                otherComputationsPreviouslyAddedDocumentsIds?.length,
-                'collectionName',
-                collectionName
-              );
+              const diffIds = computation?._parent
+                ? difference(
+                    currentlyPublishedDocumentIds,
+                    currentComputationAddedDocumentIds
+                  )
+                : difference(
+                    currentlyPublishedDocumentIds,
+                    currentComputationAddedDocumentIds,
+                    otherComputationsAddedDocumentsIds,
+                    otherComputationsPreviouslyAddedDocumentsIds
+                  );
               diffIds.forEach((id) => {
                 publish.removed(collectionName, publish._idFilter.idParse(id));
               });

@@ -82,8 +82,9 @@ Mongo.Collection.prototype.find = function (selector, options) {
     return origFind.call(this, selector, options);
   }
 
+  const canUseCache = !comp?._parent;
   // Initialize per‐computation cache
-  if (!comp._cursorCache) {
+  if (canUseCache && !comp._cursorCache) {
     comp._cursorCache = new Map();
     comp.onStop(() => comp._cursorCache.clear());
   }
@@ -108,10 +109,8 @@ Mongo.Collection.prototype.find = function (selector, options) {
 
   const key = JSON.stringify({ collectionName, selector, options });
 
-  // Establish the context of the cursor is cached on parent or current computation
-  const contextComp = comp?._parent || comp;
-  if (contextComp._cursorCache.has(key)) {
-    const entry = contextComp._cursorCache.get(key);
+  if (canUseCache && comp._cursorCache.has(key)) {
+    const entry = comp._cursorCache.get(key);
     if (entry.cursor._reactiveDependency) {
       entry.cursor._reactiveDependency.depend();
     }
@@ -134,7 +133,9 @@ Mongo.Collection.prototype.find = function (selector, options) {
   _attachReactiveDependency.call(cursor, cbSet);
   cursor._hasReactiveDepAttached = true;
 
-  contextComp._cursorCache.set(key, { cursor });
+  if (canUseCache) {
+    comp._cursorCache.set(key, { cursor });
+  }
   return cursor;
 };
 
