@@ -1,7 +1,9 @@
-import { AsyncTracker, ReactiveVarAsync } from 'meteor/server-autorun';
+import { Tracker } from 'meteor/tracker';
+import { ReactiveVar } from 'meteor/reactive-var';
 
 export class ComputedField {
   constructor(func, equalsFunc, dontStop) {
+    // To support passing boolean as the second argument.
     if (typeof equalsFunc === 'boolean') {
       dontStop = equalsFunc;
       equalsFunc = null;
@@ -26,18 +28,15 @@ export class ComputedField {
           const templateInstanceFunc =
             Package.blaze.Blaze.Template._currentTemplateInstanceFunc;
 
-          const comp = AsyncTracker.autorun(async (c) => {
-            await Package.blaze.Blaze._withCurrentView(
-              currentView,
-              async () => {
-                await Package.blaze.Blaze.Template._withTemplateInstanceFunc(
-                  templateInstanceFunc,
-                  async () => {
-                    await f.call(currentView, c);
-                  }
-                );
-              }
-            );
+          const comp = Tracker.autorun((c) => {
+            Package.blaze.Blaze._withCurrentView(currentView, () => {
+              Package.blaze.Blaze.Template._withTemplateInstanceFunc(
+                templateInstanceFunc,
+                () => {
+                  f.call(currentView, c);
+                }
+              );
+            });
           });
 
           const stopComputation = () => {
@@ -51,34 +50,31 @@ export class ComputedField {
           return comp;
         };
       } else {
-        autorun = async (f) => {
+        autorun = (f) => {
           return currentView.autorun(f);
         };
       }
     } else {
-      autorun = AsyncTracker.autorun;
+      autorun = Tracker.autorun;
     }
 
-    const startAutorun = async function () {
-      handle = await autorun(async function (computation) {
-        const value = await func();
+    const startAutorun = function () {
+      handle = autorun(function (computation) {
+        const value = func();
+
         if (!lastValue) {
-          lastValue = new ReactiveVarAsync(value, equalsFunc);
-          // Initialize lastResolvedValue with the initial value
-          lastResolvedValue = value;
+          lastValue = new ReactiveVar(value, equalsFunc);
         } else {
           lastValue.set(value);
-          // Update lastResolvedValue when the value changes
-          lastResolvedValue = value;
         }
+        console.log('--> (lib-client.js-Line: 69)\n lastValue: ', lastValue);
 
         if (!dontStop) {
-          // Use AsyncTracker.nonreactive instead of Tracker.afterFlush
-          await AsyncTracker.nonreactive(async function () {
+          Tracker.afterFlush(function () {
             // If there are no dependents anymore, stop the autorun. We will run
             // it again in the getter's flush call if needed.
             if (!lastValue.dep.hasDependents()) {
-              await getter.stop();
+              getter.stop();
             }
           });
         }
@@ -95,9 +91,9 @@ export class ComputedField {
       } else {
         // XXX COMPAT WITH METEOR 1.1.0
         const originalStop = handle.stop;
-        handle.stop = async function () {
+        handle.stop = function () {
           if (handle) {
-            await originalStop.call(handle);
+            originalStop.call(handle);
           }
           handle = null;
         };
@@ -106,18 +102,10 @@ export class ComputedField {
 
     startAutorun();
 
-    // Store the last resolved value for toString
-    let lastResolvedValue = undefined;
-
-    const getter = async function () {
+    const getter = function () {
       // We always flush so that you get the most recent value. This is a noop if autorun was not invalidated.
-      await getter.flush();
-
-      const value = lastValue.get();
-      // Store the resolved value for toString
-      lastResolvedValue = value;
-
-      return lastResolvedValue;
+      getter.flush();
+      return lastValue.get();
     };
 
     // We mingle the prototype so that getter instanceof ComputedField is true.
@@ -128,22 +116,22 @@ export class ComputedField {
     }
 
     getter.toString = function () {
-      return `ComputedField{${lastResolvedValue}}`;
+      return `ComputedField{${this()}}`;
     };
 
-    getter.apply = async () => {
+    getter.apply = () => {
       return getter();
     };
 
-    getter.call = async () => {
+    getter.call = () => {
       return getter();
     };
 
     // If this autorun is nested in the outside autorun it gets stopped automatically when the outside autorun gets
     // invalidated, so no need to call destroy. But otherwise you should call destroy when the field is not needed anymore.
-    getter.stop = async function () {
+    getter.stop = function () {
       if (handle != null) {
-        await handle.stop();
+        handle.stop();
       }
       return (handle = null);
     };
@@ -155,14 +143,14 @@ export class ComputedField {
 
     // Sometimes you want to force recomputation of the new value before the global Tracker flush is done.
     // This is a noop if autorun was not invalidated.
-    getter.flush = async () => {
-      await AsyncTracker.nonreactive(async function () {
+    getter.flush = () => {
+      Tracker.nonreactive(function () {
         if (handle) {
-          await handle.flush();
+          handle.flush();
         } else {
           // If there is no autorun, create it now. This will do initial recomputation as well. If there
           // will be no dependents after the global flush, autorun will stop (again).
-          await startAutorun();
+          startAutorun();
         }
       });
     };
@@ -172,13 +160,13 @@ export class ComputedField {
 }
 
 export class DataLookup {
-  static async lookup(obj, path) {
+  static lookup(obj, path) {
     if (typeof path === 'string') {
       path = path.split('.');
     }
 
     if (typeof obj === 'function') {
-      obj = await obj();
+      obj = obj();
     }
 
     if (!Array.isArray(path)) {
@@ -196,7 +184,7 @@ export class DataLookup {
         obj = obj[segment];
 
         if (typeof obj === 'function') {
-          obj = await obj();
+          obj = obj();
         }
       } else {
         return undefined;
@@ -206,12 +194,12 @@ export class DataLookup {
     return obj;
   }
 
-  static async get(obj, path, equalsFunc) {
-    if (!AsyncTracker.currentComputation()) {
+  static get(obj, path, equalsFunc) {
+    if (!Tracker.active) {
       return this.lookup(obj, path);
     }
 
-    const result = new ComputedField(async () => {
+    const result = new ComputedField(() => {
       return this.lookup(obj, path);
     }, equalsFunc);
 

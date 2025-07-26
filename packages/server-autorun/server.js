@@ -17,10 +17,15 @@ class AsyncTrackerDependency {
     if (!this._attached.has(comp)) {
       this._attached.add(comp);
       comp.onInvalidate(() => {
+        console.log(
+          '--> (server.js-Line: 21)\n onInvalidate comp._id: ',
+          comp._id
+        );
         this._dependents.delete(comp._id);
         this._attached.delete(comp);
       });
       comp.onStop(() => {
+        console.log('--> (server.js-Line: 21)\n onStop comp._id: ', comp._id);
         this._dependents.delete(comp._id);
         this._attached.delete(comp);
       });
@@ -207,6 +212,10 @@ class ReactiveVarAsync {
   }
 
   get() {
+    console.log(
+      '--> (server.js-Line: 211)\n this.dep.depend: ',
+      this.dep.depend
+    );
     this.dep.depend();
     return this.curValue;
   }
