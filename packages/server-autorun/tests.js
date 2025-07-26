@@ -413,6 +413,29 @@ Tinytest.addAsync(
       'Should still have the same second inner computation'
     );
 
+    // Re-run outer again and check the counts
+    await outerVar.set('outer updated second time');
+
+    // Wait for reruns
+    await Meteor._sleepForMs(50);
+
+    // Check state after second outer change
+    test.equal(
+      outerRunCount,
+      3,
+      'Outer computation should rerun when outer var changes again'
+    );
+    test.equal(
+      innerRunCount,
+      5,
+      'Inner computation should run again after second outer rerun'
+    );
+    test.equal(
+      innerComputationCount,
+      3,
+      'Should have created a third inner computation'
+    );
+
     // Clean up
     outerComputation.stop();
     if (currentInnerComputation) {
