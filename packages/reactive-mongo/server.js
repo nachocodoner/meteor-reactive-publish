@@ -40,7 +40,7 @@ function _attachReactiveDependency(changers) {
   const comp = AsyncTracker.currentComputation();
   if (!comp) return Promise.resolve(null);
 
-  if (this._reactiveDependency) {
+  if (this._reactiveDependency || this._hasReactiveDepAttached) {
     this._reactiveDependency.depend();
     return Promise.resolve(null);
   }
@@ -49,28 +49,29 @@ function _attachReactiveDependency(changers) {
   dep.depend();
   this._reactiveDependency = dep;
 
-  let initializing = true;
   const cb = {};
-
   ['added', 'changed', 'removed', 'addedBefore', 'movedBefore'].forEach(
     (event) => {
       if (changers[event]) {
         cb[event] = () => {
-          if (!initializing) dep.changedSync();
+          if (!this._initializing) dep.changedSync();
         };
       }
     }
   );
 
-  const handlePromise = this.observeChangesAsync(cb, {
+  if (this._initializing) return this._observer;
+
+  this._initializing = true;
+  this._observer = this.observeChangesAsync(cb, {
     nonMutatingCallbacks: true,
   });
-  handlePromise.then((handle) => {
-    initializing = false;
+  this._observer.then((handle) => {
+    this._initializing = false;
     comp.onStop(() => handle.stop());
   });
 
-  return handlePromise;
+  return this._observer;
 }
 
 // 3) Wrap Collection.find() to cache cursors and re‐depend on fetchAsync
@@ -106,8 +107,11 @@ Mongo.Collection.prototype.find = function (selector, options) {
   }
 
   const key = JSON.stringify({ collectionName, selector, options });
-  if (comp._cursorCache.has(key)) {
-    const entry = comp._cursorCache.get(key);
+
+  // Establish the context of the cursor is cached on parent or current computation
+  const contextComp = comp?._parent || comp;
+  if (contextComp._cursorCache.has(key)) {
+    const entry = contextComp._cursorCache.get(key);
     if (entry.cursor._reactiveDependency) {
       entry.cursor._reactiveDependency.depend();
     }
@@ -130,7 +134,7 @@ Mongo.Collection.prototype.find = function (selector, options) {
   _attachReactiveDependency.call(cursor, cbSet);
   cursor._hasReactiveDepAttached = true;
 
-  comp._cursorCache.set(key, { cursor });
+  contextComp._cursorCache.set(key, { cursor });
   return cursor;
 };
 

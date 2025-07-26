@@ -787,4 +787,264 @@ import { AsyncTracker } from 'meteor/server-autorun';
       }
     );
   }
+
+  if (Meteor.isServer) {
+    Tinytest.addAsync(
+      'reactive-mongo - nested autoruns with mongo operations',
+      async function (test) {
+        // Create a test collection
+        const NestedTest = new Mongo.Collection(`NestedTest_${Random.id()}`, {
+          idGeneration,
+        });
+
+        // Clean up any existing documents
+        await NestedTest.find().forEachAsync(async (doc) => {
+          await NestedTest.removeAsync(doc._id);
+        });
+
+        // Variables to track test state
+        let outerRunCount = 0;
+        let innerRunCount = 0;
+        let innerComputationIds = [];
+        let outerResults = [];
+        let innerResults = [];
+
+        // Create the outer autorun computation
+        const outerComputation = await AsyncTracker.autorun(
+          async (computation) => {
+            outerRunCount++;
+
+            // Find all documents in the collection
+            const outerDocs = await NestedTest.find(
+              {},
+              { sort: { value: 1 } }
+            ).fetchAsync();
+            outerResults.push(outerDocs.map((doc) => doc.value));
+
+            // Create nested computation that depends on a subset of documents
+            await AsyncTracker.autorun(async (innerComputation) => {
+              innerRunCount++;
+
+              if (!innerComputationIds.includes(innerComputation._id)) {
+                innerComputationIds.push(innerComputation._id);
+              }
+
+              // Find documents with even values
+              const innerDocs = await NestedTest.find(
+                { value: { $mod: [2, 0] } },
+                { sort: { value: 1 } }
+              ).fetchAsync();
+
+              innerResults.push(innerDocs.map((doc) => doc.value));
+            });
+          }
+        );
+
+        // Wait for initial runs
+        await Meteor._sleepForMs(100);
+
+        // Verify initial state
+        test.equal(
+          outerRunCount,
+          1,
+          'Outer computation should run once initially'
+        );
+        test.equal(
+          innerRunCount,
+          1,
+          'Inner computation should run once initially'
+        );
+        test.equal(
+          innerComputationIds.length,
+          1,
+          'Should have created one inner computation'
+        );
+        test.equal(outerResults.length, 1, 'Should have one outer result');
+        test.equal(innerResults.length, 1, 'Should have one inner result');
+        test.equal(
+          outerResults[0].length,
+          0,
+          'Should have no documents initially'
+        );
+        test.equal(
+          innerResults[0].length,
+          0,
+          'Should have no documents initially'
+        );
+
+        // Insert documents that affect both outer and inner computations
+        const docIds = [];
+        for (let i = 0; i < 5; i++) {
+          const docId = await NestedTest.insertAsync({
+            value: i,
+            name: `Item ${i}`,
+          });
+          docIds.push(docId);
+
+          // Wait for computations to rerun
+          await Meteor._sleepForMs(100);
+        }
+
+        // Verify state after insertions
+        test.equal(
+          outerRunCount,
+          6,
+          'Outer computation should run for each insert'
+        );
+        test.equal(
+          innerRunCount,
+          6,
+          'Inner computation should run for each insert'
+        );
+        test.equal(
+          innerComputationIds.length,
+          6,
+          'Should have created a new inner computation for each outer run'
+        );
+        test.equal(
+          outerResults[5].length,
+          5,
+          'Should have 5 documents in outer result'
+        );
+        test.equal(
+          innerResults[5].length,
+          3,
+          'Should have 3 documents with even values in inner result'
+        );
+        test.equal(
+          outerResults[5],
+          [0, 1, 2, 3, 4],
+          'Outer results should contain all values'
+        );
+        test.equal(
+          innerResults[5],
+          [0, 2, 4],
+          'Inner results should contain even values'
+        );
+
+        // Update a document that affects only the outer computation
+        await NestedTest.updateAsync(
+          { value: 1 },
+          { $set: { name: 'Updated Item 1' } }
+        );
+
+        // Wait for computations to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify state after update to odd-valued document
+        test.equal(
+          outerRunCount,
+          7,
+          'Outer computation should rerun after update'
+        );
+        test.equal(
+          innerRunCount,
+          7,
+          'Inner computation should rerun when outer reruns'
+        );
+        test.equal(
+          innerComputationIds.length,
+          7,
+          'Should have created a new inner computation when outer reruns'
+        );
+
+        // Update a document that affects both outer and inner computations
+        // It will trigger rerun twice (+2. 7 => 9), since two events happened:
+        // a change and a movedBefore as sort order is changed.
+        await NestedTest.updateAsync(
+          { value: 2 },
+          { $set: { value: 6, name: 'Updated Item 2' } }
+        );
+
+        // Wait for computations to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify state after update to even-valued document
+        test.equal(
+          outerRunCount,
+          9,
+          'Outer computation should rerun after update'
+        );
+        test.equal(
+          innerRunCount,
+          9,
+          'Inner computation should rerun when outer reruns'
+        );
+        test.equal(
+          innerComputationIds.length,
+          9,
+          'Should have created a new inner computation when outer reruns'
+        );
+        test.equal(
+          outerResults[7].length,
+          5,
+          'Should still have 5 documents in outer result'
+        );
+        test.equal(
+          innerResults[7].length,
+          3,
+          'Should have 3 documents with even values in inner result'
+        );
+        test.equal(
+          outerResults[7],
+          [0, 1, 3, 4, 6],
+          'Outer results should reflect the update'
+        );
+        test.equal(
+          innerResults[7],
+          [0, 4, 6],
+          'Inner results should reflect the update'
+        );
+
+        // Remove a document that affects both outer and inner computations
+        await NestedTest.removeAsync({ value: 0 });
+
+        // Wait for computations to rerun
+        await Meteor._sleepForMs(100);
+
+        // Verify state after removal
+        test.equal(
+          outerRunCount,
+          10,
+          'Outer computation should rerun after removal'
+        );
+        test.equal(
+          innerRunCount,
+          10,
+          'Inner computation should rerun when outer reruns'
+        );
+        test.equal(
+          innerComputationIds.length,
+          10,
+          'Should have created a new inner computation when outer reruns'
+        );
+        test.equal(
+          outerResults[9].length,
+          4,
+          'Should have 4 documents in outer result'
+        );
+        test.equal(
+          innerResults[9].length,
+          2,
+          'Should have 2 documents with even values in inner result'
+        );
+        test.equal(
+          outerResults[9],
+          [1, 3, 4, 6],
+          'Outer results should reflect the removal'
+        );
+        test.equal(
+          innerResults[9],
+          [4, 6],
+          'Inner results should reflect the removal'
+        );
+
+        // Clean up
+        outerComputation.stop();
+        await NestedTest.find().forEachAsync(async (doc) => {
+          await NestedTest.removeAsync(doc._id);
+        });
+      }
+    );
+  }
 });
