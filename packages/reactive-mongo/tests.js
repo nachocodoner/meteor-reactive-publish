@@ -1047,4 +1047,164 @@ import { AsyncTracker } from 'meteor/server-autorun';
       }
     );
   }
+  if (Meteor.isServer) {
+    Tinytest.addAsync(
+      'reactive-mongo - cursor cache clearing in all scenarios',
+      async function (test) {
+        // Create a test collection
+        const CacheTest = new Mongo.Collection(`CacheTest_${Random.id()}`, {
+          idGeneration,
+        });
+
+        // Clean up any existing documents
+        await CacheTest.find().forEachAsync(async (doc) => {
+          await CacheTest.removeAsync(doc._id);
+        });
+
+        // Insert some test documents
+        const docIds = [];
+        for (let i = 0; i < 5; i++) {
+          const docId = await CacheTest.insertAsync({
+            value: i,
+            name: `Item ${i}`,
+          });
+          docIds.push(docId);
+        }
+
+        // Variables to track test state
+        let rerunCount = 0;
+        let cacheSize = 0;
+        let cacheSizeHistory = [];
+
+        // Create the autorun computation
+        const trackerComputation = await AsyncTracker.autorun(
+          async (computation) => {
+            rerunCount++;
+
+            // Run a find operation to populate the cache
+            await CacheTest.find({}).fetchAsync();
+
+            // Run another find with different selector to populate cache more
+            await CacheTest.find({ value: { $lt: 3 } }).fetchAsync();
+
+            // Store the current cache size
+            cacheSize = computation._cursorCache
+              ? computation._cursorCache.size
+              : 0;
+            cacheSizeHistory.push(cacheSize);
+          }
+        );
+
+        // Wait for initial run to complete
+        await Meteor._sleepForMs(100);
+
+        // Verify initial state
+        test.equal(rerunCount, 1, 'Computation should have run once initially');
+        test.equal(cacheSize, 2, 'Cache should contain 2 entries initially');
+
+        // Test scenario 1: Changing a document should invalidate the cache
+        await CacheTest.updateAsync(docIds[0], {
+          $set: { name: 'Updated Item' },
+        });
+        await Meteor._sleepForMs(100);
+
+        test.equal(rerunCount, 2, 'Computation should have rerun after update');
+        test.equal(
+          cacheSize,
+          2,
+          'Cache should still contain 2 entries after update'
+        );
+
+        // Test scenario 2: Using the same selector with different options
+        await AsyncTracker.autorun(async () => {
+          // This should clear the existing cache entry for this selector and create a new one
+          await CacheTest.find({}, { sort: { value: -1 } }).fetchAsync();
+        });
+
+        await Meteor._sleepForMs(100);
+
+        // The original computation's cache should remain unchanged
+        test.equal(
+          cacheSize,
+          2,
+          'Original computation cache should be unaffected'
+        );
+
+        // Test scenario 3: Changing the selector with same options
+        const selectorChangeComputation = await AsyncTracker.autorun(
+          async (computation) => {
+            // First run with one selector
+            await CacheTest.find({ value: 1 }).fetchAsync();
+
+            // Store cache size after first run
+            if (computation._runCount === 1) {
+              test.equal(
+                computation._cursorCache.size,
+                1,
+                'Cache should have 1 entry after first run'
+              );
+
+              // Change the selector for next run
+              await CacheTest.updateAsync(docIds[1], { $set: { value: 10 } });
+            }
+          }
+        );
+
+        await Meteor._sleepForMs(100);
+
+        // The cache should still have 1 entry but with the updated selector
+        test.equal(
+          selectorChangeComputation._cursorCache.size,
+          1,
+          'Cache should still have 1 entry after selector change'
+        );
+
+        // Clean up this computation
+        await selectorChangeComputation.stop();
+
+        // Test scenario 4: Stopping and restarting computation
+        await trackerComputation.stop();
+
+        // Verify cache is cleared when computation stops
+        test.equal(
+          trackerComputation._cursorCache.size,
+          0,
+          'Cache should be cleared when computation stops'
+        );
+
+        // Create a new computation to test cache initialization
+        const newComputation = await AsyncTracker.autorun(
+          async (computation) => {
+            await CacheTest.find({}).fetchAsync();
+            await CacheTest.find({ value: { $gt: 3 } }).fetchAsync();
+            await CacheTest.find({ value: { $lt: 2 } }).fetchAsync();
+          }
+        );
+
+        await Meteor._sleepForMs(100);
+
+        // Verify new computation has its own cache
+        test.equal(
+          newComputation._cursorCache.size,
+          3,
+          'New computation should have its own cache'
+        );
+
+        // Test scenario 5: Stopping another computation also clears its cache
+        await newComputation.stop();
+
+        // Verify cache is cleared when computation stops
+        test.equal(
+          newComputation._cursorCache.size,
+          0,
+          'Cache should be cleared when computation stops'
+        );
+
+        // Clean up
+        await CacheTest.find().forEachAsync(async (doc) => {
+          await CacheTest.removeAsync(doc._id);
+        });
+      }
+    );
+  }
 });
