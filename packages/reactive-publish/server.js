@@ -464,4 +464,17 @@ export const extendPublish = (name, publishFunction, options) => {
   return [name, newPublishFunction, options];
 };
 
+// Add the publishReactive function
+Meteor.publishReactive = function(name, publishFunction, options) {
+  return Meteor.publish(name, function(...args) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const publish = this;
+
+    // Set up a single autorun and pass the provided function as the first autorun
+    publish.autorun(function(computation) {
+      return publishFunction.apply(publish, [...args, computation]);
+    });
+  }, options);
+};
+
 wrapPublish(extendPublish);

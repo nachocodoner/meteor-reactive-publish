@@ -318,6 +318,22 @@ async function runSteps(steps, test, done) {
       });
     });
 
+    // Test the new publishReactive function
+    Meteor.publishReactive(`users-posts-reactive_${idGeneration}`, async function (userId, computation) {
+      // Verify that computation is passed as the last argument
+      if (!computation || typeof computation.firstRun !== 'boolean') {
+        throw new Error('Computation not passed to publishReactive function');
+      }
+
+      const user = await Users.findOneAsync(userId, { fields: { posts: 1 } });
+      const projectedField = await Fields.findOneAsync(userId);
+
+      return Posts.find(
+        { _id: { $in: (user && user.posts) || [] } },
+        { fields: omit(projectedField, '_id') }
+      );
+    });
+
     Meteor.publish(
       `users-posts-and-addresses_${idGeneration}`,
       function (userId) {
@@ -755,6 +771,13 @@ async function runSteps(steps, test, done) {
       `ReactivePublish basic (${idGeneration}) - users-posts-method`,
       (test, done) => {
         runSteps(basicSteps('users-posts-method', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish basic (${idGeneration}) - users-posts-reactive`,
+      (test, done) => {
+        runSteps(basicSteps('users-posts-reactive', test), test, done);
       }
     );
   }
