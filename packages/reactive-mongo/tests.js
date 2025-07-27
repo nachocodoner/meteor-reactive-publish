@@ -40,7 +40,6 @@ import { AsyncTracker } from 'meteor/server-autorun';
           async function (computation) {
             countReactive++;
             const TestCursor = Test.find({});
-            if (handleObserver) await handleObserver.stop();
             handleObserver = await TestCursor.observeChangesAsync({
               added(id) {
                 docsAdded.push(id);

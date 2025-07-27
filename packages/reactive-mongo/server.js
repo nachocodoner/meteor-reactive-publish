@@ -53,8 +53,10 @@ function _attachReactiveDependency(changers) {
   ['added', 'changed', 'removed', 'addedBefore', 'movedBefore'].forEach(
     (event) => {
       if (changers[event]) {
-        cb[event] = () => {
-          if (!this._initializing) dep.changedSync();
+        cb[event] = async () => {
+          if (!this._initializing) {
+            await dep.changed();
+          }
         };
       }
     }
