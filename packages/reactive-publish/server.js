@@ -208,6 +208,14 @@ export const extendPublish = (name, publishFunction, options) => {
     const documents = {};
     const allCollectionNames = {};
 
+    // If in test mode, expose these objects for testing
+    if (Meteor.isTest) {
+      // Store references to the actual documents and oldDocuments objects
+      global._testDocumentsRef = documents;
+      global._testOldDocumentsRef = oldDocuments;
+      global._testAllCollectionNamesRef = allCollectionNames;
+    }
+
     // Provide a helper to get the current computation.
     // In Meteor 3, we use AsyncTracker instead of Tracker.
     // so we simply return null if no active computation.

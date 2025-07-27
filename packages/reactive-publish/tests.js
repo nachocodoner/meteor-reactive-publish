@@ -474,6 +474,42 @@ async function runSteps(steps, test, done) {
       return LocalCollection.insertAsync(doc);
     };
     methods[`runOnServer`] = async function () {};
+
+    // Special method for testing cleanup of documents and oldDocuments
+    // Create a special publication for testing cleanup
+    Meteor.publish(`cleanup-test-with-refs_${idGeneration}`, function () {
+      // Store references to the actual objects used in the publication
+      const self = this;
+      self.autorun(async () => {
+        // Just a simple publication that adds a document
+        self.added(`cleanup-test_${idGeneration}`, 'test-id', {
+          value: 'test',
+        });
+        self.ready();
+      });
+    });
+
+    // Method to check if documents and oldDocuments are empty
+    methods[`checkDocumentsCleanup_${idGeneration}`] = function () {
+      // Access the documents and oldDocuments objects directly through the references
+      // These references are set in server.js when Meteor.isTest is true
+      const documentsRef = global._testDocumentsRef || {};
+      const oldDocumentsRef = global._testOldDocumentsRef || {};
+      const allCollectionNamesRef = global._testAllCollectionNamesRef || {};
+
+      // Check if the objects are empty (no keys)
+      const documentsEmpty = Object.keys(documentsRef).length === 0;
+      const oldDocumentsEmpty = Object.keys(oldDocumentsRef).length === 0;
+      const allCollectionNamesEmpty =
+        Object.keys(allCollectionNamesRef).length === 0;
+
+      return {
+        documentsEmpty,
+        oldDocumentsEmpty,
+        allCollectionNamesEmpty,
+      };
+    };
+
     Meteor.methods(methods);
   } else {
     // On the client, create persistent LocalCollection.
@@ -1584,11 +1620,88 @@ async function runSteps(steps, test, done) {
       }
     );
   }
+
+  // ---- CLEANUP TESTS ----
+  // On the server, define a publication for testing cleanup
+  if (Meteor.isServer) {
+    Meteor.publish(`cleanup-test_${idGeneration}`, function () {
+      const self = this;
+      self.autorun(async () => {
+        // Just a simple publication that adds a document
+        self.added(`cleanup-test_${idGeneration}`, 'test-id', {
+          value: 'test',
+        });
+        self.ready();
+      });
+    });
+  }
+
+  // Test that documents and oldDocuments are emptied after subscription is stopped
+  if (Meteor.isClient) {
+    Tinytest.addAsync(
+      `ReactivePublish cleanup (${idGeneration}) - documents and oldDocuments cleanup`,
+      async (test, done) => {
+        try {
+          // First, make sure we have no active subscriptions
+          unsubscribeAll();
+
+          // Wait a bit to ensure cleanup from previous tests
+          await new Promise((resolve) => Meteor.setTimeout(resolve, 500));
+
+          // Subscribe to the cleanup test publication
+          const handle = Meteor.subscribe(
+            `cleanup-test-with-refs_${idGeneration}`,
+            {
+              onReady: async function () {
+                // Verify that documents and oldDocuments are not empty during active subscription
+                const beforeCleanup = await Meteor.callAsync(
+                  `checkDocumentsCleanup_${idGeneration}`
+                );
+                test.isFalse(
+                  beforeCleanup.documentsEmpty,
+                  'documents should not be empty during active subscription'
+                );
+                test.isFalse(
+                  beforeCleanup.allCollectionNamesEmpty,
+                  'allCollectionNames should not be empty during active subscription'
+                );
+
+                // Stop the subscription
+                handle.stop();
+
+                // Wait for cleanup to occur
+                await new Promise((resolve) => Meteor.setTimeout(resolve, 500));
+
+                // Verify that documents and oldDocuments are empty after subscription is stopped
+                const afterCleanup = await Meteor.callAsync(
+                  `checkDocumentsCleanup_${idGeneration}`
+                );
+                test.isTrue(
+                  afterCleanup.documentsEmpty,
+                  'documents should be empty after subscription is stopped'
+                );
+                test.isTrue(
+                  afterCleanup.oldDocumentsEmpty,
+                  'oldDocuments should be empty after subscription is stopped'
+                );
+                test.isTrue(
+                  afterCleanup.allCollectionNamesEmpty,
+                  'allCollectionNames should be empty after subscription is stopped'
+                );
+
+                done();
+              },
+              onError: async function (error) {
+                test.fail(`Subscription failed: ${error.message}`);
+                done();
+              },
+            }
+          );
+        } catch (error) {
+          test.fail(`Test failed: ${error.message}`);
+          done();
+        }
+      }
+    );
+  }
 });
-
-// TODO: Clean formatting of the file.
-
-// TODO: Add more tests for other functionalities, such as
-// - Testing that documents and oldDocuments are emptied after all subscriptions are stopped
-// - Testing that computation are just run once when the data changes
-// - Testing that observe callbacks are not rerun unnecessarily
