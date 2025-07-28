@@ -1,6 +1,5 @@
 import { Tinytest } from 'meteor/tinytest';
-import { AsyncTracker, ReactiveVarAsync } from 'meteor/server-autorun';
-import { ReactiveVar } from 'meteor/reactive-var';
+import { ReactiveVarAsync } from 'meteor/server-autorun';
 import { Mongo } from 'meteor/mongo';
 import { Random } from 'meteor/random';
 
@@ -319,20 +318,23 @@ async function runSteps(steps, test, done) {
     });
 
     // Test the new publishReactive function
-    Meteor.publishReactive(`users-posts-reactive_${idGeneration}`, async function (userId, computation) {
-      // Verify that computation is passed as the last argument
-      if (!computation || typeof computation.firstRun !== 'boolean') {
-        throw new Error('Computation not passed to publishReactive function');
+    Meteor.publishReactive(
+      `users-posts-reactive_${idGeneration}`,
+      async function (userId, computation) {
+        // Verify that computation is passed as the last argument
+        if (!computation || typeof computation.firstRun !== 'boolean') {
+          throw new Error('Computation not passed to publishReactive function');
+        }
+
+        const user = await Users.findOneAsync(userId, { fields: { posts: 1 } });
+        const projectedField = await Fields.findOneAsync(userId);
+
+        return Posts.find(
+          { _id: { $in: (user && user.posts) || [] } },
+          { fields: omit(projectedField, '_id') }
+        );
       }
-
-      const user = await Users.findOneAsync(userId, { fields: { posts: 1 } });
-      const projectedField = await Fields.findOneAsync(userId);
-
-      return Posts.find(
-        { _id: { $in: (user && user.posts) || [] } },
-        { fields: omit(projectedField, '_id') }
-      );
-    });
+    );
 
     Meteor.publish(
       `users-posts-and-addresses_${idGeneration}`,
@@ -925,6 +927,13 @@ async function runSteps(steps, test, done) {
       `ReactivePublish unsubscribing (${idGeneration}) - users-posts-method`,
       (test, done) => {
         runSteps(unsubscribingSteps('users-posts-method', test), test, done);
+      }
+    );
+
+    Tinytest.addAsync(
+      `ReactivePublish unsubscribing (${idGeneration}) - users-posts-reactive`,
+      (test, done) => {
+        runSteps(unsubscribingSteps('users-posts-reactive', test), test, done);
       }
     );
   }
