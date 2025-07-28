@@ -17,9 +17,9 @@ Package.onUse(function (api) {
   // Add the files
   api.addFiles(
     [
-      'lib/async-reactive/AsyncTracker.js',
-      'lib/async-reactive/ReactiveVarAsync.js',
-      'lib/mongo-reactive/MongoReactiveServer.js',
+      'lib/AsyncReactive/AsyncTracker.js',
+      'lib/AsyncReactive/ReactiveVarAsync.js',
+      'lib/MongoReactive/MongoReactiveServer.js',
       'lib/PublishReactiveServer.js',
     ],
     'server'
@@ -34,9 +34,9 @@ Package.onTest(function (api) {
   // Add the test files
   api.addFiles(
     [
-      'lib/async-reactive/AsyncTracker.tests.js',
-      'lib/async-reactive/ReactiveVarAsync.tests.js',
-      'lib/mongo-reactive/MongoReactiveServer.tests.js',
+      'lib/AsyncReactive/AsyncTracker.tests.js',
+      'lib/AsyncReactive/ReactiveVarAsync.tests.js',
+      'lib/MongoReactive/MongoReactiveServer.tests.js',
     ],
     'server'
   );
