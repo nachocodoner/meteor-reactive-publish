@@ -23,7 +23,7 @@ Package.onUse(function (api) {
     [
       'lib/async-reactive/AsyncTracker.js',
       'lib/async-reactive/ReactiveVarAsync.js',
-      'lib/mongo-reactive/ReactiveMongoServer.js',
+      'lib/mongo-reactive/MongoReactiveServer.js',
       'lib/PublishReactiveServer.js',
     ],
     'server'
@@ -40,7 +40,7 @@ Package.onTest(function (api) {
     [
       'lib/async-reactive/AsyncTracker.tests.js',
       'lib/async-reactive/ReactiveVarAsync.tests.js',
-      'lib/mongo-reactive/ReactiveMongoServer.tests.js',
+      'lib/mongo-reactive/MongoReactiveServer.tests.js',
     ],
     'server'
   );
