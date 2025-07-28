@@ -2,6 +2,7 @@ import { Tinytest } from 'meteor/tinytest';
 import { ReactiveVarAsync } from 'meteor/server-autorun';
 import { Mongo } from 'meteor/mongo';
 import { Random } from 'meteor/random';
+import { check } from 'meteor/check';
 
 // ---- Helpers ----
 
@@ -100,7 +101,7 @@ async function runSteps(steps, test, done) {
           test.fail(`${subscriptionName} was expected to fail but succeeded`);
           doneStep();
         },
-        onError(error) {
+        onError() {
           doneStep();
         },
       });
@@ -169,13 +170,6 @@ async function runSteps(steps, test, done) {
     idGeneration,
   });
 
-  async function setUpServer() {
-    await Users.removeAsync({});
-    await Posts.removeAsync({});
-    await Addresses.removeAsync({});
-    await Fields.removeAsync({});
-  }
-
   // Save collections for multiplexer count.
   const allCollections = [Users, Posts, Addresses, Fields];
 
@@ -232,7 +226,9 @@ async function runSteps(steps, test, done) {
         self.ready();
       });
       self.onStop(async () => {
-        handle && handle.stop && (await handle.stop());
+        if (handle && handle.stop) {
+          await handle.stop();
+        }
       });
     });
 
@@ -387,13 +383,13 @@ async function runSteps(steps, test, done) {
           const handle = await Posts.find({
             _id: { $in: (user && user.posts) || [] },
           }).observeChangesAsync({
-            added(id) {
+            added() {
               count++;
               if (!initializing) {
                 self.changed(`Counts_${idGeneration}`, countId, { count });
               }
             },
-            removed(id) {
+            removed() {
               count--;
               if (!initializing) {
                 self.changed(`Counts_${idGeneration}`, countId, { count });
@@ -540,6 +536,7 @@ async function runSteps(steps, test, done) {
   // Methods available on both client and server.
   const localMethods = {};
   localMethods[`clearLocalCollection_${idGeneration}`] = async function () {
+    // eslint-disable-next-line no-undef
     return LocalCollection.removeAsync({});
   };
   Meteor.methods(localMethods);
@@ -1293,13 +1290,13 @@ async function runSteps(steps, test, done) {
               this.handle = Posts.find({
                 timestamp: { $exists: true },
               }).observeChangesAsync({
-                added: (id, fields) => {
+                added: (id) => {
                   if (this.changes.some((change) => change.added === id)) {
                     return;
                   } // TODO should not happen re-added for same id
                   this.changes.push({ added: id, timestamp: Date.now() });
                 },
-                changed: (id, fields) => {
+                changed: (_id) => {
                   test.fail('Changed should not occur');
                 },
                 removed: (id) => {
@@ -1450,6 +1447,7 @@ async function runSteps(steps, test, done) {
         this.subscribeSuccess(`localCollection_${idGeneration}`, next);
       },
       async function (next) {
+        // eslint-disable-next-line no-undef
         test.equal(await LocalCollection.find({}).fetchAsync(), []);
 
         // Insert documents
@@ -1468,6 +1466,7 @@ async function runSteps(steps, test, done) {
         await Meteor.setTimeout(next, 1000);
       },
       async function (next) {
+        // eslint-disable-next-line no-undef
         test.equal(LocalCollection.find({}).count(), 10);
 
         try {
@@ -1480,6 +1479,7 @@ async function runSteps(steps, test, done) {
         await Meteor.setTimeout(next, 1000);
       },
       async function (next) {
+        // eslint-disable-next-line no-undef
         test.equal(await LocalCollection.find({}).countAsync(), 5);
 
         // Insert more documents
@@ -1498,6 +1498,7 @@ async function runSteps(steps, test, done) {
         await Meteor.setTimeout(next, 1000);
       },
       async function (next) {
+        // eslint-disable-next-line no-undef
         test.equal(await LocalCollection.find({}).countAsync(), 5);
 
         try {
@@ -1508,6 +1509,7 @@ async function runSteps(steps, test, done) {
         }
       },
       async function (next) {
+        // eslint-disable-next-line no-undef
         test.equal(await LocalCollection.find({}).countAsync(), 15);
         next();
       },

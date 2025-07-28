@@ -96,6 +96,7 @@ export default [
       'jsx-a11y/no-autofocus': 'warn',
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-this-alias': 'off',
     },
   },
 ];
