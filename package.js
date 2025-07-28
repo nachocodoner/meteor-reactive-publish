@@ -1,5 +1,5 @@
 Package.describe({
-  name: 'publish-reactive',
+  name: 'reactive-publish',
   version: '0.0.1',
   summary: 'Reactive publish for Meteor with async support',
   git: '',
@@ -7,7 +7,7 @@ Package.describe({
 });
 
 Package.onUse(function (api) {
-  api.versionsFrom(['3.0.1', '3.1', '3.2']);
+  api.versionsFrom(['3.0.1']);
   api.use(['ecmascript', 'mongo', 'minimongo']);
 
   // Export the AsyncTracker and ReactiveVarAsync
@@ -17,10 +17,10 @@ Package.onUse(function (api) {
   // Add the files
   api.addFiles(
     [
-      'lib/AsyncReactive/AsyncTracker.js',
-      'lib/AsyncReactive/ReactiveVarAsync.js',
-      'lib/MongoReactive/MongoReactiveServer.js',
-      'lib/PublishReactiveServer.js',
+      'lib/ReactiveAsync/AsyncTracker.js',
+      'lib/ReactiveAsync/ReactiveVarAsync.js',
+      'lib/ReactiveMongo/ReactiveMongoServer.js',
+      'lib/ReactivePublishServer.js',
     ],
     'server'
   );
@@ -29,16 +29,17 @@ Package.onUse(function (api) {
 Package.onTest(function (api) {
   api.use(['ecmascript', 'reactive-var', 'insecure', 'random', 'check']);
   api.use(['tinytest', 'test-helpers']);
-  api.use('publish-reactive');
+  api.use('reactive-publish');
 
-  // Add the test files
+  // Add the test files for server
   api.addFiles(
     [
-      'lib/AsyncReactive/AsyncTracker.tests.js',
-      'lib/AsyncReactive/ReactiveVarAsync.tests.js',
-      'lib/MongoReactive/MongoReactiveServer.tests.js',
+      'lib/ReactiveAsync/AsyncTracker.tests.js',
+      'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
+      'lib/ReactiveMongo/ReactiveMongoServer.tests.js',
     ],
     'server'
   );
-  api.addFiles(['lib/PublishReactive.tests.js']);
+  // Add the test files for server and client
+  api.addFiles(['lib/ReactivePublish.tests.js']);
 });
