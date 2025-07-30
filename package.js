@@ -28,8 +28,9 @@ Package.onUse(function (api) {
 
 Package.onTest(function (api) {
   api.use(['ecmascript', 'reactive-var', 'insecure', 'random', 'check']);
+  api.use(['accounts-base']);
   api.use(['tinytest', 'test-helpers']);
-  api.use('reactive-publish');
+  api.use('nachocodoner:reactive-publish');
 
   // Add the test files for server
   api.addFiles(
