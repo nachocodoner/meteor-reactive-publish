@@ -1,6 +1,6 @@
 Package.describe({
   name: 'nachocodoner:reactive-publish',
-  version: '1.0.0-alpha.0',
+  version: '1.0.0-alpha.1',
   summary: 'Reactive publish for Meteor with async support',
   git: '',
   documentation: 'README.md',
