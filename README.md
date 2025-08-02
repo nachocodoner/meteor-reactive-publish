@@ -99,7 +99,7 @@ Meteor.publish('users-posts-and-addresses', function (userId) {
         
 - **Expansion**
     - Support for `AsyncTracker` and `ReactiveVarAsync` on the client
-    - Migrate [`peerlibrary/meteor-subscription-data`](https://github.com/peerlibrary/meteor-subscription-data) to support publishing derived or external database data reactively
+    - Migrate [`peerlibrary/meteor-subscription-data`](https://github.com/peerlibrary/meteor-subscription-data) to support publishing derived data reactively
 
 - **Performance**
     - [Run benchmarks](https://github.com/meteor/performance) to identify performance improvement opportunities
