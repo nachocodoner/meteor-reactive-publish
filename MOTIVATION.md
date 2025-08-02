@@ -14,6 +14,6 @@ A quick snapshot of what’s been achieved so far: migrating several interdepend
 
 Next steps are to improve stability and gather performance data.In parallel, peerlibrary's packages explored more concepts, such as those in _[**peerlibrary:subscribe-data**](https://github.com/peerlibrary/meteor-subscription-data)_, including the ability to publish any data reactively using Meteor's built-in system. Integrating this library as an extension is also planned.
 
-🗺️ [Review the roadmap](./README.md#roadmap) to see the future plans for this library.
+🗺️ [**Review the roadmap**](./README.md#roadmap) to see the future plans for this library.
 
 ☄️ **Keep going with Meteor 3 and building cool apps!**
