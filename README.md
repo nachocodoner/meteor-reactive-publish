@@ -105,3 +105,8 @@ Meteor.publish('users-posts-and-addresses', function (userId) {
     - [Run benchmarks](https://github.com/meteor/performance) to identify performance improvement opportunities
     - Compare results with [`reywood:publish-composite`](https://github.com/Meteor-Community-Packages/meteor-publish-composite) to ensure equal or better behavior
 
+## Acknowledgments
+
+This package builds on over a decade of work by [PeerLibrary](https://github.com/peerlibrary/meteor-reactive-publish) during the legacy Meteor era. Big thanks to everyone involved over those years, , especially [mitar](https://github.com/mitar).
+
+The original idea came from the excellent work of [Diggory Blake](https://github.com/Diggsey/meteor-reactive-publish), who created the first implementation.
