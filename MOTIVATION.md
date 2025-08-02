@@ -12,7 +12,7 @@ I know others were blocked on the Meteor 3 migration due to this library compati
 
 A quick snapshot of what’s been achieved so far: migrating several interdependent **peerlibrary packages** written in **Coffeescript** to modern **Javascript**, closely tied to **Meteor Tracker** and reactivity, and using **fibers**. This involved careful async migration to **Node standards**, updating the **test setup** from a custom framework to **TinyTest**, and adjusting many tests until they passed one by one. Test coverage was **expanded and performance considered**.
 
-Next steps are to improve stability and gather performance data. However, peerlibrary's packages explored more concepts, such as those in _[**peerlibrary:subscribe-data**](https://github.com/peerlibrary/meteor-subscription-data)_, including the ability to publish any data reactively using Meteor's built-in system.
+Next steps are to improve stability and gather performance data.In parallel, peerlibrary's packages explored more concepts, such as those in _[**peerlibrary:subscribe-data**](https://github.com/peerlibrary/meteor-subscription-data)_, including the ability to publish any data reactively using Meteor's built-in system. Integrating this library as an extension is also planned.
 
 🗺️ [Review the roadmap](./README.md#roadmap) to see the future plans for this library.
 
