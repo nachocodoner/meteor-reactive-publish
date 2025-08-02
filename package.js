@@ -2,7 +2,7 @@ Package.describe({
   name: 'nachocodoner:reactive-publish',
   version: '1.0.0-alpha.1',
   summary: 'Reactive publish for Meteor with async support',
-  git: '',
+  git: 'https://github.com/nachocodoner/meteor-reactive-publish',
   documentation: 'README.md',
 });
 
@@ -24,6 +24,9 @@ Package.onUse(function (api) {
     ],
     'server'
   );
+
+  // Add the main module for the server
+  api.mainModule('main.js', 'server');
 });
 
 Package.onTest(function (api) {
