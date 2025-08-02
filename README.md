@@ -10,8 +10,10 @@
     
 - 🚀 Optimized with **unique cursors per computation** to avoid redundant re-instantiation
     
-🔥 [**Learn about the motivation**](./MOTIVATION.md) for reviving this package for Meteor 3.  
+🔥 [**Learn about the motivation**](./MOTIVATION.md) for reviving this package for Meteor 3.
+
 🗺️ [**Explore the roadmap**](#roadmap) for future updates and support.
+
 ## Installation
 
 ``` bash
