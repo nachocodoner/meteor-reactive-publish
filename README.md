@@ -36,6 +36,8 @@ Meteor.publish('subscribed-posts', function () {
 });
 ```
 
+In the example above, you publish the user’s subscribed posts. When the User’s `subscribedPosts` field changes, autorun reruns and publishes the updated posts. Any queries with related data work the same way. You can also publish an array of cursors and use the same logic as in a normal publication body.
+
 Since most use cases involve a single `autorun` block, you can use `Meteor.publishReactive` for cleaner syntax:
 
 ```javascript
