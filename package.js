@@ -31,7 +31,7 @@ Package.onUse(function (api) {
 
 Package.onTest(function (api) {
   api.use(['ecmascript', 'reactive-var', 'insecure', 'random', 'check']);
-  api.use(['accounts-base']);
+  api.use(['accounts-base', 'accounts-password']);
   api.use(['tinytest', 'test-helpers']);
   api.use('nachocodoner:reactive-publish');
 
@@ -45,5 +45,8 @@ Package.onTest(function (api) {
     'server'
   );
   // Add the test files for server and client
-  api.addFiles(['lib/ReactivePublish.tests.js']);
+  api.addFiles([
+    'lib/ReactivePublish.tests.js',
+    'lib/ReactivePublishVsNonReactive.tests.js',
+  ]);
 });
