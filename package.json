@@ -12,7 +12,8 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "test": "meteor test-packages ./",
-    "test:ci": "METEOR_PACKAGE_DIRS=../ meteor npx mtest --package nachocodoner:reactive-publish --once"
+    "test:ci": "METEOR_PACKAGE_DIRS=../ meteor npx mtest --package nachocodoner:reactive-publish --once",
+    "test:core": "./scripts/test-core.sh"
   },
   "repository": {
     "type": "git",
@@ -37,6 +38,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.3",
+    "puppeteer": "^24.4.0",
     "react": "^19.0.0"
   },
   "lint-staged": {

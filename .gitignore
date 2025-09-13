@@ -3,3 +3,4 @@ dist/
 build/
 .meteor/local
 .idea
+.babel-cache
