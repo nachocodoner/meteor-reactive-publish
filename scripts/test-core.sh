@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Set METEOR_PACKAGE_DIRS environment variable
-# METEOR_PACKAGE_DIRS=../../
-
 # Prepare meteor-core
 git submodule update --init --recursive
 

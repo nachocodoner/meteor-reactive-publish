@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    name: meteor-reactive-publish packagetests
+    name: meteor-reactive-publish package tests
 
     steps:
       - name: Checkout repository
