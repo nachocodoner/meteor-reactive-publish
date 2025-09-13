@@ -1,0 +1,34 @@
+name: Meteor Publish Reactive (Test Package)
+
+on:
+  push:
+    branches:
+      - alpha
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    name: meteor-reactive-publish packagetests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Meteor
+        uses: actions/cache@v4
+        with:
+          path: ~/.meteor
+          key: meteor-cache
+
+      - name: Setup Meteor
+        uses: meteorengineer/setup-meteor@v2
+        with:
+          meteor-release: '3.3.2'
+
+      - name: Install and Test Local Package
+        working-directory: .
+        run: |
+          meteor npm install
+          meteor npm run test:ci
