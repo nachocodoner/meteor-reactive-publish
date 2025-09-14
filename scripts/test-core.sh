@@ -51,6 +51,21 @@ cp lib/ReactivePublishVsNonReactive.tests.js "$PACKAGE_PATH/lib/"
 echo "Adding $PACKAGE_NAME to tinytest package.js"
 sed -i "/api.mainModule('tinytest_client.js'/i \ \ api.use('$PACKAGE_NAME');" meteor-core/packages/tinytest/package.js
 
+if [[ ! -d "./meteor-core/dev_bundle" ]]; then
+  # Prepare meteor-core
+  echo "Running tests"
+  ./meteor-core/meteor --get-ready
+fi
+
+if [[ ! -d "./meteor-core/dev_bundle/lib/node_modules/puppeteer" ]]; then
+  # Install puppeteer
+  echo "Install puppeteer"
+  curPWD="${PWD}"
+  cd ./meteor-core/dev_bundle/lib
+  npm install puppeteer@23.6.0 -D
+  cd "${curPWD}"
+fi
+
 # Test core
 echo "Running tests"
 ./meteor-core/packages/test-in-console/run.sh

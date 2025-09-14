@@ -50,10 +50,5 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Prepare Meteor core
-        run: |
-          git submodule update --init --recursive
-          ./meteor-core/meteor --get-ready
-
       - name: Run Core Tests
         run: npm run test:core
