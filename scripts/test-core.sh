@@ -66,6 +66,10 @@ if [[ ! -d "./meteor-core/dev_bundle/lib/node_modules/puppeteer" ]]; then
   cd "${curPWD}"
 fi
 
+# Modify puppeteer_runner.js to add protocolTimeout: 300_000
+echo "Adding protocolTimeout: 300_000 to puppeteer.launch in puppeteer_runner.js"
+sed -i 's/headless: "new",/headless: "new",\n    protocolTimeout: 300_000,/' meteor-core/packages/test-in-console/puppeteer_runner.js
+
 # Test core
 echo "Running tests"
 ./meteor-core/packages/test-in-console/run.sh
@@ -73,10 +77,10 @@ echo "Running tests"
 # Store the exit code of the test:core script
 TEST_EXIT_CODE=$?
 
-# Reset the changes to the package.js file
-echo "Reverting changes to tinytest package.js"
+# Reset the changes to the puppeteer_runner.js and tinytest package.js files
+echo "Reverting changes to puppeteer_runner.js and tinytest package.js"
 cd meteor-core
-git checkout -- packages/tinytest/package.js
+git checkout -- packages/test-in-console/puppeteer_runner.js packages/tinytest/package.js
 cd ..
 
 # Remove the copied package files
@@ -84,7 +88,7 @@ echo "Removing copied package files"
 rm -rf "$PACKAGE_PATH"
 
 echo "Tests completed with exit code: $TEST_EXIT_CODE"
-echo "Changes to packages/tinytest/package.js have been reverted."
+echo "Changes to packages/test-in-console/puppeteer_runner.js and packages/tinytest/package.js have been reverted."
 echo "Copied package files have been removed."
 
 # Exit with the same code as the test:core script
