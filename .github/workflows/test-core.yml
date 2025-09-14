@@ -15,7 +15,11 @@ jobs:
     timeout-minutes: 60
 
     env:
+      CI: 'true'
       PUPPETEER_DOWNLOAD_PATH: /home/runner/.npm/chromium
+      TOOL_NODE_FLAGS: '--max-old-space-size=4096'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      SERVER_NODE_OPTIONS: '--max-old-space-size=4096'
 
     name: meteor-core tests
 
