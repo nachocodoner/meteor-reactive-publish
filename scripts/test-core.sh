@@ -48,8 +48,8 @@ cp lib/ReactivePublish.tests.js "$PACKAGE_PATH/lib/"
 cp lib/ReactivePublishVsNonReactive.tests.js "$PACKAGE_PATH/lib/"
 
 # Add nachocodoner:reactive-publish to the tinytest package
-#echo "Adding $PACKAGE_NAME to tinytest package.js"
-#sed -i "/api.mainModule('tinytest_client.js'/i \ \ api.use('$PACKAGE_NAME');" meteor-core/packages/tinytest/package.js
+echo "Adding $PACKAGE_NAME to tinytest package.js"
+sed -i "/api.mainModule('tinytest_client.js'/i \ \ api.use('$PACKAGE_NAME');" meteor-core/packages/tinytest/package.js
 
 if [[ ! -d "./meteor-core/dev_bundle" ]]; then
   # Prepare meteor-core
