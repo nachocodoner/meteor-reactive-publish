@@ -49,9 +49,4 @@ workflows:
   version: 2
   test:
     jobs:
-      - test-core:
-          filters:
-            branches:
-              only:
-                - alpha
-                - /pull\/[0-9]+/
+      - test-core

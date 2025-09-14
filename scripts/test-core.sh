@@ -92,5 +92,5 @@ echo "Tests completed with exit code: $TEST_EXIT_CODE"
 echo "Changes to packages/test-in-console/puppeteer_runner.js and packages/tinytest/package.js have been reverted."
 echo "Copied package files have been removed."
 
-# Exit with the same code as the test:core script.
+# Exit with the same code as the test:core script
 exit $TEST_EXIT_CODE
