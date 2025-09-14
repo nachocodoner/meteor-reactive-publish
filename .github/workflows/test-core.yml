@@ -37,8 +37,9 @@ jobs:
         with:
           node-version: 22.17.1
 
-      - name: Cache Node.js modules and Meteor
-        uses: actions/cache@v4
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.npm
@@ -56,3 +57,16 @@ jobs:
 
       - name: Run Core Tests
         run: npm run test:core
+
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.meteor
+            meteor-core/.meteor
+            meteor-core/.babel-cache
+            meteor-core/dev_bundle
+            /home/runner/.npm/chromium
+          key: ${{ runner.os }}-node-meteor-${{ hashFiles('**/package-lock.json', 'meteor-core/meteor') }}
