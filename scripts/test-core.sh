@@ -66,9 +66,10 @@ if [[ ! -d "./meteor-core/dev_bundle/lib/node_modules/puppeteer" ]]; then
   cd "${curPWD}"
 fi
 
-# Modify puppeteer_runner.js to add protocolTimeout: 600_000
-echo "Adding protocolTimeout: 600_000 to puppeteer.launch in puppeteer_runner.js"
+# Modify puppeteer_runner.js to add protocolTimeout: 600_000 and additional args
+echo "Adding protocolTimeout: 600_000 and additional args to puppeteer.launch in puppeteer_runner.js"
 sed -i 's/headless: "new",/headless: "new",\n    protocolTimeout: 600_000,/' meteor-core/packages/test-in-console/puppeteer_runner.js
+sed -i "s/'--disable-web-security',/'--disable-web-security',\n      '--disable-dev-shm-usage',\n      '--disable-gpu',/" meteor-core/packages/test-in-console/puppeteer_runner.js
 
 # Test core
 echo "Running tests"
