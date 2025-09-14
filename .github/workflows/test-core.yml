@@ -9,6 +9,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/puppeteer/puppeteer:22  # has Chromium + deps
+      options: --shm-size=1g                 # critical for stability
     concurrency:
       group: ${{ github.head_ref }}-test-core
       cancel-in-progress: true
@@ -16,6 +19,9 @@ jobs:
 
     env:
       PUPPETEER_DOWNLOAD_PATH: /home/runner/.npm/chromium
+      TOOL_NODE_FLAGS: '--max-old-space-size=4096'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      SERVER_NODE_OPTIONS: '--max-old-space-size=4096'
 
     name: meteor-core tests
 
