@@ -1,0 +1,57 @@
+version: 2.1
+
+jobs:
+  test-core:
+    docker:
+      - image: cimg/node:22.18.0-browsers
+    resource_class: medium+
+    environment:
+      CI: 'true'
+      PUPPETEER_DOWNLOAD_PATH: /home/circleci/.npm/chromium
+      TOOL_NODE_FLAGS: '--max-old-space-size=4096'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      SERVER_NODE_OPTIONS: '--max-old-space-size=4096'
+    steps:
+      - checkout
+      - run:
+          name: Update and install dependencies
+          command: sudo apt-get update && sudo apt-get install -y libnss3 g++-12 fonts-noto-color-emoji fonts-noto-cjk fonts-liberation
+      - run:
+          name: Install Google Chrome Stable
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y google-chrome-stable
+      - run:
+          name: Checkout submodules
+          command: git submodule update --init --recursive
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package-lock.json" }}-{{ checksum "meteor-core/meteor" }}
+            - v1-dependencies-
+      - run:
+          name: Install dependencies
+          command: npm install
+      - run:
+          name: Run Core Tests
+          command: npm run test:core
+          no_output_timeout: 60m
+      - save_cache:
+          paths:
+            - ~/.npm
+            - ~/.meteor
+            - meteor-core/.meteor
+            - meteor-core/.babel-cache
+            - meteor-core/dev_bundle
+            - /home/circleci/.npm/chromium
+          key: v1-dependencies-{{ checksum "package-lock.json" }}-{{ checksum "meteor-core/meteor" }}
+
+workflows:
+  version: 2
+  test:
+    jobs:
+      - test-core:
+          filters:
+            branches:
+              only:
+                - alpha
+                - /pull\/[0-9]+/
