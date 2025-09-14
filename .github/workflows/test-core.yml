@@ -9,9 +9,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/puppeteer/puppeteer:23  # has Chromium + deps
-      options: --shm-size=1g                 # critical for stability
     concurrency:
       group: ${{ github.head_ref }}-test-core
       cancel-in-progress: true
@@ -19,13 +16,13 @@ jobs:
 
     env:
       PUPPETEER_DOWNLOAD_PATH: /home/runner/.npm/chromium
-      TOOL_NODE_FLAGS: '--max-old-space-size=4096'
-      NODE_OPTIONS: '--max-old-space-size=4096'
-      SERVER_NODE_OPTIONS: '--max-old-space-size=4096'
 
     name: meteor-core tests
 
     steps:
+      - name: Update and install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libnss3 g++-12
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -34,7 +31,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20.15.1
+          node-version: 22.17.1
 
       - name: Cache Node.js modules and Meteor
         uses: actions/cache@v4
