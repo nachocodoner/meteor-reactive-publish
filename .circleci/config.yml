@@ -17,11 +17,6 @@ jobs:
           name: Update and install dependencies
           command: sudo apt-get update && sudo apt-get install -y libnss3 g++-12 fonts-noto-color-emoji fonts-noto-cjk fonts-liberation
       - run:
-          name: Install Google Chrome Stable
-          command: |
-            sudo apt-get update
-            sudo apt-get install -y google-chrome-stable
-      - run:
           name: Checkout submodules
           command: git submodule update --init --recursive
       - restore_cache:
