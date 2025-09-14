@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/puppeteer/puppeteer:22  # has Chromium + deps
+      image: ghcr.io/puppeteer/puppeteer:23  # has Chromium + deps
       options: --shm-size=1g                 # critical for stability
     concurrency:
       group: ${{ github.head_ref }}-test-core
@@ -26,9 +26,6 @@ jobs:
     name: meteor-core tests
 
     steps:
-      - name: Update and install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libnss3 g++-12
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
