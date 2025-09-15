@@ -20,16 +20,6 @@
 meteor add nachocodoner:reactive-publish@1.0.0-alpha.2
 ```
 
-## Development
-
-This repository includes the Meteor core as a git submodule, pointing to the `devel` branch of the [Meteor repository](https://github.com/meteor/meteor.git). When you clone this repository and run `npm install`, the submodule will be automatically initialized and updated.
-
-If you need to manually initialize or update the submodule, you can run:
-
-```bash
-git submodule update --init --recursive
-```
-
 ## Usage
 
 ### Basic
