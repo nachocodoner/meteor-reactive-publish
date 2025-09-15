@@ -3,7 +3,7 @@ name: Meteor Publish Reactive (Test Package)
 on:
   push:
     branches:
-      - alpha
+      - master
   pull_request:
 
 jobs:
