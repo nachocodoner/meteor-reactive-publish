@@ -97,7 +97,7 @@ Meteor.publish('users-posts-and-addresses', function (userId) {
 
 ## Roadmap
 
-- **Stability**
+- **Stability** ✅
     - Ensure core changes in this package don't affect Meteor core tests
     - Release betas and RCs, with a feedback period for early adopters
 
