@@ -3,13 +3,13 @@
 `reactive-publish` is a Meteor package that adds **reactive publishing with async support**. It's based on [**peerlibrary:reactive-publish**](https://github.com/peerlibrary/meteor-reactive-publish), fully overhauled for compatibility with **Meteor 3** and its **fiber-free** environment.
 
 - 🔄 Reactively publish data with related field changes across collections
-    
+
 - ⚙️ Supports `autorun` in publication functions for **realtime updates**
-    
+
 - 🧵 Integrates `AsyncTracker` and `ReactiveVarAsync` for **async-compatible reactivity**
-    
+
 - 🚀 Optimized with **unique cursors per computation** to avoid redundant re-instantiation
-    
+
 🔥 [**Learn about the motivation**](./MOTIVATION.md) for reviving this package for Meteor 3.
 
 🗺️ [**Explore the roadmap**](#roadmap) for future updates and support.
@@ -18,6 +18,16 @@
 
 ``` bash
 meteor add nachocodoner:reactive-publish@1.0.0-alpha.2
+```
+
+## Development
+
+This repository includes the Meteor core as a git submodule, pointing to the `devel` branch of the [Meteor repository](https://github.com/meteor/meteor.git). When you clone this repository and run `npm install`, the submodule will be automatically initialized and updated.
+
+If you need to manually initialize or update the submodule, you can run:
+
+```bash
+git submodule update --init --recursive
 ```
 
 ## Usage
@@ -100,7 +110,7 @@ Meteor.publish('users-posts-and-addresses', function (userId) {
 - **Stability**
     - Ensure core changes in this package don't affect Meteor core tests
     - Release betas and RCs, with a feedback period for early adopters
-        
+
 - **Expansion**
     - Support for `AsyncTracker` and `ReactiveVarAsync` on the client
     - Migrate [`peerlibrary:subscription-data`](https://github.com/peerlibrary/meteor-subscription-data) to support publishing derived data reactively

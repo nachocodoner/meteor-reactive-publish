@@ -1,0 +1,84 @@
+language: node_js
+node_js:
+  - "22.18.0"
+
+# Set timezone and locale
+env:
+  global:
+    - CI=true
+    - TZ=Europe/Madrid
+    - LANG=en_US.UTF-8
+    - LC_ALL=en_US.UTF-8
+    # Node memory headroom
+    - NODE_OPTIONS=--max-old-space-size=4096
+    - TOOL_NODE_FLAGS=--max-old-space-size=4096
+    - SERVER_NODE_OPTIONS=--max-old-space-size=4096
+    # Puppeteer hardening
+    - PUPPETEER_PROTOCOL_TIMEOUT=600000
+    - PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+    - PUPPETEER_CI=1
+    - PUPPETEER_CACHE_DIR=$HOME/.cache/puppeteer
+    # Separate Chromium download dir
+    - PUPPETEER_DOWNLOAD_PATH=$HOME/.npm/chromium
+
+# Use a larger VM
+sudo: required
+dist: focal
+
+# Cache dependencies
+cache:
+  directories:
+    - $HOME/.npm
+    - $HOME/.meteor
+    - meteor-core/.meteor
+    - meteor-core/.babel-cache
+    - meteor-core/dev_bundle
+    - $HOME/.npm/chromium
+    - $HOME/.cache/puppeteer
+
+before_install:
+  # Detect or install Chrome
+  - DETECTED="$(command -v google-chrome || true)"
+  - '[ -z "$DETECTED" ] && DETECTED="$(command -v google-chrome-stable || true)"'
+  - '[ -z "$DETECTED" ] && DETECTED="$(command -v chromium || true)"'
+  - '[ -z "$DETECTED" ] && DETECTED="$(command -v chromium-browser || true)"'
+  - |
+    if [ -z "$DETECTED" ]; then
+      echo "Chrome not found. Installing Google Chrome Stable…"
+      wget -qO- https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google-linux.gpg
+      echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-linux.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+      sudo apt-get update
+      sudo apt-get install -y google-chrome-stable
+      DETECTED="/usr/bin/google-chrome"
+    fi
+  - echo "Using Chrome at: $DETECTED"
+  - export PUPPETEER_EXECUTABLE_PATH=$DETECTED
+
+  # System info
+  - node -v
+  - which google-chrome || true
+  - google-chrome --version || true
+  - free -m || true
+  - df -h || true
+
+  # Update and install extra system deps
+  - sudo apt-get update
+  - sudo apt-get install -y libnss3 g++-12 make python3 fonts-noto-color-emoji fonts-noto-cjk fonts-liberation
+
+  # Checkout submodules
+  - git submodule update --init --recursive
+
+install:
+  # Install dependencies
+  - npm install
+
+script:
+  # Run Core Tests (with a 60-minute timeout)
+  - travis_wait 60 npm run test:core
+
+after_failure:
+  # Store artifacts on failure
+  - if [ -d "artifacts" ]; then tar -czf artifacts.tar.gz artifacts; fi
+  - if [ -d "screenshots" ]; then tar -czf screenshots.tar.gz screenshots; fi
+  - if [ -d "logs" ]; then tar -czf logs.tar.gz logs; fi
+  - if [ -d "test-results" ]; then tar -czf test-results.tar.gz test-results; fi

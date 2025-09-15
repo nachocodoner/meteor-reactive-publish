@@ -1,0 +1,4 @@
+[submodule "meteor-core"]
+	path = meteor-core
+	url = https://github.com/meteor/meteor.git
+	branch = devel

@@ -1,8 +1,8 @@
 {
-  "name": "bundlers",
+  "name": "meteor-reactive-publish",
   "version": "1.0.0",
   "type": "module",
-  "description": "Integrate modern bundlers with Meteor",
+  "description": "Meteor package for reactive publishing with async support",
   "main": "index.js",
   "directories": {
     "example": "examples"
@@ -11,22 +11,25 @@
     "prepare": "husky install",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "meteor test-packages ./",
+    "test:ci": "METEOR_PACKAGE_DIRS=../ meteor npx mtest --package nachocodoner:reactive-publish --once",
+    "test:core": "./scripts/test-core.sh"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/meteor/bundlers.git"
+    "url": "git+https://github.com/nachocodoner/meteor-reactive-publish.git"
   },
-  "author": "",
+  "author": "Nacho Codoñer",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/meteor/bundlers/issues"
+    "url": "https://github.com/nachocodoner/meteor-reactive-publish/issues"
   },
-  "homepage": "https://github.com/meteor/bundlers#readme",
+  "homepage": "https://github.com/nachocodoner/meteor-reactive-publish#readme",
   "devDependencies": {
     "@eslint/js": "^9.22.0",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
+    "@zodern/mtest": "^0.5.1",
     "eslint": "^9.22.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-jsx-a11y": "^6.10.2",
@@ -35,6 +38,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.3",
+    "puppeteer": "^24.4.0",
     "react": "^19.0.0"
   },
   "lint-staged": {

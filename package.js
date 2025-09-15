@@ -30,7 +30,14 @@ Package.onUse(function (api) {
 });
 
 Package.onTest(function (api) {
-  api.use(['ecmascript', 'reactive-var', 'insecure', 'random', 'check']);
+  api.use([
+    'ecmascript',
+    'reactive-var',
+    'insecure',
+    'random',
+    'check',
+    'jquery',
+  ]);
   api.use(['accounts-base', 'accounts-password']);
   api.use(['tinytest', 'test-helpers']);
   api.use('nachocodoner:reactive-publish');
