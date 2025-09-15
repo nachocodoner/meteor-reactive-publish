@@ -11,6 +11,7 @@
     "prepare": "husky install",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+    "publish": "./scripts/publish.sh",
     "test": "meteor test-packages ./",
     "test:ci": "METEOR_PACKAGE_DIRS=../ meteor npx mtest --package nachocodoner:reactive-publish --once",
     "test:core": "./scripts/test-core.sh"
