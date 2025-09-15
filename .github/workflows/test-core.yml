@@ -1,0 +1,77 @@
+name: Meteor Publish Reactive (Test Core)
+
+on:
+  push:
+    branches:
+      - alpha
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.head_ref }}-test-core
+      cancel-in-progress: true
+    timeout-minutes: 60
+
+    env:
+      CI: 'true'
+      PUPPETEER_DOWNLOAD_PATH: /home/runner/.npm/chromium
+      TOOL_NODE_FLAGS: '--max-old-space-size=4096'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      SERVER_NODE_OPTIONS: '--max-old-space-size=4096'
+
+    name: meteor-core tests
+
+    steps:
+      - name: Update and install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libnss3 g++-12 fonts-noto-color-emoji fonts-noto-cjk fonts-liberation
+
+      - name: Install Google Chrome Stable
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22.18.0
+
+      - name: Restore cache
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.meteor
+            meteor-core/.meteor
+            meteor-core/.babel-cache
+            meteor-core/dev_bundle
+            /home/runner/.npm/chromium
+          key: ${{ runner.os }}-node-meteor-${{ hashFiles('**/package-lock.json', 'meteor-core/meteor') }}
+          restore-keys: |
+            ${{ runner.os }}-node-meteor-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Core Tests
+        run: npm run test:core
+
+      - name: Save cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.npm
+            ~/.meteor
+            meteor-core/.meteor
+            meteor-core/.babel-cache
+            meteor-core/dev_bundle
+            /home/runner/.npm/chromium
+          key: ${{ runner.os }}-node-meteor-${{ hashFiles('**/package-lock.json', 'meteor-core/meteor') }}
