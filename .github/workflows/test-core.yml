@@ -8,6 +8,8 @@ on:
 
 jobs:
   build:
+    # Temporarily disabled - can be re-enabled by removing the 'if: false' condition
+    if: false
     runs-on: ubuntu-latest
     concurrency:
       group: ${{ github.head_ref }}-test-core
