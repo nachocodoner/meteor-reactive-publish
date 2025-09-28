@@ -6,10 +6,6 @@ Package.describe({
   documentation: 'README.md',
 });
 
-Npm.depends({
-  'zone.js': '0.15.1',
-});
-
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
   api.use(['ecmascript', 'mongo', 'minimongo']);
