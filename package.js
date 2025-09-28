@@ -43,7 +43,13 @@ Package.onTest(function (api) {
   api.use('nachocodoner:reactive-publish');
 
   // Add the test files for server
-  api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+  api.addFiles(
+    [
+      'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
+      'lib/ReactiveMongo/ReactiveMongoServer.tests.js',
+    ],
+    ['server']
+  );
   // Add the test files for server and client
   api.addFiles([
     'lib/ReactiveAsync/AsyncTracker.tests.js',
