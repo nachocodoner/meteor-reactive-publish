@@ -47,7 +47,7 @@ Package.onTest(function (api) {
     [
       'lib/ReactiveAsync/AsyncTracker.tests.js',
       'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
-      'lib/ReactiveAsync/Showcase.tests.js',
+      'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
       'lib/ReactiveMongo/ReactiveMongoServer.tests.js',
     ],
     'server'
