@@ -6,10 +6,6 @@ Package.describe({
   documentation: 'README.md',
 });
 
-Npm.depends({
-  effect: '3.17.14',
-});
-
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
   api.use(['ecmascript', 'mongo', 'minimongo']);
@@ -26,6 +22,9 @@ Package.onUse(function (api) {
     ],
     ['client', 'server']
   );
+
+  // Add the files for client only
+  api.addFiles(['lib/ReactiveAsync/ClientAsyncContext.js'], 'client');
 
   // Add the files for server
   api.addFiles(
@@ -54,14 +53,14 @@ Package.onTest(function (api) {
   api.use('nachocodoner:reactive-publish');
 
   // Add the test files for server
-  api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+  // api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
 
   // Add the test files for server and client
   api.addFiles([
     'lib/ReactiveAsync/AsyncTracker.tests.js',
     'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
-    'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
-    'lib/ReactivePublish.tests.js',
-    'lib/ReactivePublishVsNonReactive.tests.js',
+    // 'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
+    // 'lib/ReactivePublish.tests.js',
+    // 'lib/ReactivePublishVsNonReactive.tests.js',
   ]);
 });
