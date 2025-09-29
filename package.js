@@ -6,6 +6,10 @@ Package.describe({
   documentation: 'README.md',
 });
 
+Npm.depends({
+  effect: '3.17.14',
+});
+
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
   api.use(['ecmascript', 'mongo', 'minimongo']);
