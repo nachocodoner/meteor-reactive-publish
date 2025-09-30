@@ -20,6 +20,7 @@ Package.onUse(function (api) {
       'lib/ReactiveAsync/AsyncTracker.js',
       'lib/ReactiveAsync/ReactiveVarAsync.js',
       'lib/ReactiveAsync/ComputedField.js',
+      'lib/ReactiveAsync/DataLookup.js',
     ],
     ['client', 'server']
   );
@@ -61,6 +62,7 @@ Package.onTest(function (api) {
     'lib/ReactiveAsync/AsyncTracker.tests.js',
     'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
     'lib/ReactiveAsync/ComputedField.tests.js',
+    'lib/ReactiveAsync/DataLookup.tests.js',
     'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
     'lib/ReactivePublish.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
