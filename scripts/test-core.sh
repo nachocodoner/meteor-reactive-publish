@@ -12,6 +12,7 @@ PACKAGE_PATH="meteor-core/packages/$PACKAGE_DIR_NAME"
 echo "Creating package directory structure in meteor-core/packages"
 mkdir -p "$PACKAGE_PATH/lib/ReactiveAsync"
 mkdir -p "$PACKAGE_PATH/lib/ReactiveMongo"
+mkdir -p "$PACKAGE_PATH/lib/ReactiveData"
 
 # Copy package.js with api.versionsFrom, package name lines, and Package.onTest block commented out
 echo "Copying package.js with api.versionsFrom, package name lines, and Package.onTest block commented out"
