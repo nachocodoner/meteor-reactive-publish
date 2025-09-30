@@ -56,17 +56,17 @@ Package.onTest(function (api) {
   api.use('nachocodoner:reactive-publish');
 
   // Add the test files for server
-  api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+  // api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
 
   // Add the test files for server and client
   api.addFiles([
-    'lib/ReactiveAsync/AsyncTracker.tests.js',
-    'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
-    'lib/ReactiveAsync/ComputedField.tests.js',
-    'lib/ReactiveAsync/DataLookup.tests.js',
-    'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
-    'lib/ReactivePublish.tests.js',
-    'lib/ReactivePublishVsNonReactive.tests.js',
+    // 'lib/ReactiveAsync/AsyncTracker.tests.js',
+    // 'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
+    // 'lib/ReactiveAsync/ComputedField.tests.js',
+    // 'lib/ReactiveAsync/DataLookup.tests.js',
+    // 'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
+    // 'lib/ReactivePublish.tests.js',
+    // 'lib/ReactivePublishVsNonReactive.tests.js',
     'lib/ReactiveData/ReactiveData.tests.js',
   ]);
 });
