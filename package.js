@@ -8,7 +8,7 @@ Package.describe({
 
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
-  api.use(['ecmascript', 'mongo', 'minimongo']);
+  api.use(['ecmascript', 'mongo', 'minimongo', 'tracker', 'reactive-var']);
 
   // Export the AsyncTracker and ReactiveVarAsync
   api.export('AsyncTracker');
@@ -19,6 +19,7 @@ Package.onUse(function (api) {
     [
       'lib/ReactiveAsync/AsyncTracker.js',
       'lib/ReactiveAsync/ReactiveVarAsync.js',
+      'lib/ReactiveAsync/ComputedField.js',
     ],
     ['client', 'server']
   );
@@ -36,7 +37,7 @@ Package.onUse(function (api) {
   );
 
   // Add the main module for the server
-  api.mainModule('main.js', 'server');
+  api.mainModule('main.js', ['client', 'server']);
 });
 
 Package.onTest(function (api) {
@@ -53,14 +54,15 @@ Package.onTest(function (api) {
   api.use('nachocodoner:reactive-publish');
 
   // Add the test files for server
-  // api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+  api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
 
   // Add the test files for server and client
   api.addFiles([
     'lib/ReactiveAsync/AsyncTracker.tests.js',
     'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
-    // 'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
-    // 'lib/ReactivePublish.tests.js',
-    // 'lib/ReactivePublishVsNonReactive.tests.js',
+    'lib/ReactiveAsync/ComputedField.tests.js',
+    'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
+    'lib/ReactivePublish.tests.js',
+    'lib/ReactivePublishVsNonReactive.tests.js',
   ]);
 });
