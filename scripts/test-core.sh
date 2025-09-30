@@ -53,6 +53,10 @@ cp lib/ReactivePublishVsNonReactive.tests.js "$PACKAGE_PATH/lib/"
 echo "Adding $PACKAGE_NAME to tinytest package.js"
 sed -i "/api.mainModule('tinytest_client.js'/i \ \ api.use('$PACKAGE_NAME');" meteor-core/packages/tinytest/package.js
 
+# Replace expectedMessages in livedata_server_tests.js as is now expected by subscription-data changes
+echo "Replacing expectedMessages in livedata_server_tests.js as is now expected by subscription-data changes"
+sed -i "s/const expectedMessages = \['sub', 'added', 'ready', 'sub', 'unsub', 'added', 'ready', 'nosub'\]/const expectedMessages = \['sub', 'added', 'added', 'ready', 'sub', 'unsub', 'added', 'added', 'ready', 'nosub', 'removed'\]/" meteor-core/packages/ddp-server/livedata_server_tests.js
+
 if [[ ! -d "./meteor-core/dev_bundle" ]]; then
   # Prepare meteor-core
   echo "Running tests"
@@ -83,7 +87,7 @@ TEST_EXIT_CODE=$?
 # Reset the changes to the puppeteer_runner.js and tinytest package.js files
 echo "Reverting changes to puppeteer_runner.js and tinytest package.js"
 cd meteor-core
-git checkout -- packages/test-in-console/puppeteer_runner.js packages/tinytest/package.js
+git checkout -- packages/test-in-console/puppeteer_runner.js packages/tinytest/package.js packages/ddp-server/livedata_server_tests.js
 cd ..
 
 # Remove the copied package files
