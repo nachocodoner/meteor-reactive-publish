@@ -68,5 +68,6 @@ Package.onTest(function (api) {
     'lib/ReactivePublish.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
     'lib/ReactiveData/ReactiveData.tests.js',
+    'lib/ReactiveData/ReactiveDataShowcase.tests.js',
   ]);
 });
