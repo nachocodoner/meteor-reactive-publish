@@ -53,6 +53,7 @@ export default [
         Meteor: 'readonly',
         Package: 'readonly',
         testAsyncMulti: 'readonly',
+        Npm: 'readonly',
       },
     },
     plugins: { '@typescript-eslint': ts },
