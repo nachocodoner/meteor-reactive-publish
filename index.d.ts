@@ -3,8 +3,9 @@ import { AsyncTrackerComputation } from 'meteor/nachocodoner:reactive-publish';
 declare module 'meteor/nachocodoner:reactive-publish' {
   /**
    * AsyncTrackerDependency class for managing reactive dependencies
+   * @template T The type of value this dependency is tracking
    */
-  class AsyncTrackerDependency {
+  class AsyncTrackerDependency<T = any> {
     constructor();
 
     /**
@@ -32,8 +33,9 @@ declare module 'meteor/nachocodoner:reactive-publish' {
 
   /**
    * AsyncTrackerComputation class representing a reactive computation
+   * @template T The return type of the computation function
    */
-  class AsyncTrackerComputation {
+  class AsyncTrackerComputation<T = any> {
     /**
      * The ID of this computation
      */
@@ -58,25 +60,25 @@ declare module 'meteor/nachocodoner:reactive-publish' {
      * Register a callback to run before the computation runs
      * @param {Function} fn The callback function
      */
-    beforeRun(fn: (computation: AsyncTrackerComputation) => void): void;
+    beforeRun(fn: (computation: AsyncTrackerComputation<T>) => void): void;
 
     /**
      * Register a callback to run after the computation runs
      * @param {Function} fn The callback function
      */
-    afterRun(fn: (computation: AsyncTrackerComputation) => void): void;
+    afterRun(fn: (computation: AsyncTrackerComputation<T>) => void): void;
 
     /**
      * Register a callback to run when the computation is invalidated
      * @param {Function} fn The callback function
      */
-    onInvalidate(fn: (computation: AsyncTrackerComputation) => void): void;
+    onInvalidate(fn: (computation: AsyncTrackerComputation<T>) => void): void;
 
     /**
      * Register a callback to run when the computation is stopped
      * @param {Function} fn The callback function
      */
-    onStop(fn: (computation: AsyncTrackerComputation) => void): void;
+    onStop(fn: (computation: AsyncTrackerComputation<T>) => void): void;
 
     /**
      * Stop the computation
@@ -91,7 +93,7 @@ declare module 'meteor/nachocodoner:reactive-publish' {
     /**
      * Force an immediate re-run
      */
-    run(): Promise<void>;
+    run(): Promise<T>;
   }
 
   /**
@@ -100,28 +102,30 @@ declare module 'meteor/nachocodoner:reactive-publish' {
   class AsyncTracker {
     /**
      * Create a reactive computation
+     * @template T The return type of the computation function
      * @param {Function} f The function to run reactively
      * @param {Object} options Options for the computation
-     * @returns {AsyncTrackerComputation} The computation
+     * @returns {AsyncTrackerComputation<T>} The computation
      */
-    static autorun(
-      f: (computation: AsyncTrackerComputation) => any,
+    static autorun<T = any>(
+      f: (computation: AsyncTrackerComputation<T>) => T | Promise<T>,
       options?: {
         onError?: (error: Error) => void;
-        parent?: AsyncTrackerComputation;
+        parent?: AsyncTrackerComputation<any>;
       }
-    ): AsyncTrackerComputation;
+    ): AsyncTrackerComputation<T>;
 
     /**
      * Get the current computation
-     * @returns {AsyncTrackerComputation|null} The current computation or null
+     * @returns {AsyncTrackerComputation<any>|null} The current computation or null
      */
-    static currentComputation(): AsyncTrackerComputation | null;
+    static currentComputation(): AsyncTrackerComputation<any> | null;
 
     /**
      * Run a function with no current computation
+     * @template T The return type of the function
      * @param {Function} f The function to run
-     * @returns {Promise<any>} The result of the function
+     * @returns {Promise<T>} The result of the function
      */
     static nonreactive<T>(f: () => T | Promise<T>): Promise<T>;
 
@@ -183,23 +187,26 @@ declare module 'meteor/meteor' {
     interface PublishContext {
       /**
        * Run a function reactively in the publish context
+       * @template T The return type of the computation function
        * @param {Function} runFunc The function to run reactively
-       * @returns {Promise<AsyncTrackerComputation>} The computation handle
+       * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
        */
-      autorun(
-        runFunc: (computation: AsyncTrackerComputation) => any
-      ): Promise<AsyncTrackerComputation>;
+      autorun<T = any>(
+        runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
+      ): Promise<AsyncTrackerComputation<T>>;
     }
 
     /**
      * Create a reactive publication
+     * @template T The return type of the publish function
+     * @template Args The types of the arguments passed to the publish function
      * @param {string} name The name of the publication
      * @param {Function} publishFunction The publish function
      * @param {Object} options Options for the publication
      */
-    function publishReactive(
+    function publishReactive<T = any, Args extends any[] = any[]>(
       name: string,
-      publishFunction: (this: PublishContext, ...args: any[]) => any,
+      publishFunction: (this: PublishContext, ...args: Args) => T | Promise<T>,
       options?: object
     ): any;
   }
