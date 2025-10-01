@@ -109,7 +109,6 @@ This example shows how to publish a collection with a reactive total count and a
 
 Server:
 ```javascript
-// /server/publications.js
 import { Meteor } from 'meteor/meteor';
 import { check } from 'meteor/check';
 import { Mongo } from 'meteor/mongo';
@@ -119,7 +118,7 @@ export const Posts = new Mongo.Collection('posts');
 Meteor.publish('posts.infiniteScroll', function () {
   // Reactive total count
   this.autorun(async () => {
-    await this.setData('countAll', Posts.find().count());
+    await this.setData('countAll', await Posts.find().countAsync());
   });
 
   // Reactive window of posts, adjustable by client
@@ -161,7 +160,7 @@ Meteor.publish('user.subscriptionTier', function (userId) {
   const pub = this;
   let tier = 'free';
 
-  // Simulate external updates
+  // Simulate external updates (It could be an API, database, or service)
   const handle = setInterval(async () => {
     tier = (tier === 'free') ? 'pro' : 'free';
     await pub.setData('tier', tier);
