@@ -183,8 +183,8 @@ declare module 'meteor/nachocodoner:reactive-publish' {
 declare module 'meteor/meteor' {
   // Extend the Meteor namespace
   namespace Meteor {
-    // Extend the Meteor.PublishContext interface to include autorun
-    interface PublishContext {
+    // Extend the Meteor.Subscription interface to include autorun
+    interface Subscription {
       /**
        * Run a function reactively in the publish context
        * @template T The return type of the computation function
@@ -206,7 +206,7 @@ declare module 'meteor/meteor' {
      */
     function publishReactive<T = any, Args extends any[] = any[]>(
       name: string,
-      publishFunction: (this: PublishContext, ...args: Args) => T | Promise<T>,
+      publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
       options?: object
     ): any;
   }
