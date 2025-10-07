@@ -8,7 +8,7 @@
 
 - ⚙️ Supports `autorun` in publication functions for **realtime updates**
 
-- 🧵 Integrates `AsyncTracker` and `ReactiveVarAsync` for **async-compatible reactivity*
+- 🧵 Integrates `AsyncTracker`/`ReactiveVarAsync` for **async-safe reactivity* (server only)
 
 - 🚀 Optimized with **unique cursors per computation** to avoid redundant re-instantiation
 
