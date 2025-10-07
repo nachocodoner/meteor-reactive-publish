@@ -153,7 +153,6 @@ This example shows how to publish data reactively from an external source. Here 
 
 Server:
 ```javascript
-// /server/publications.js
 import { Meteor } from 'meteor/meteor';
 
 Meteor.publish('user.subscriptionTier', function (userId) {
@@ -172,7 +171,6 @@ Meteor.publish('user.subscriptionTier', function (userId) {
 
 Client (React + useTracker):
 ```javascript
-// /client/SubscriptionInfo.jsx
 import React from 'react';
 import { Meteor } from 'meteor/meteor';
 import { useTracker } from 'meteor/react-meteor-data';
@@ -182,6 +180,70 @@ export default function SubscriptionInfo({ userId }) {
   const tier = useTracker(() => sub.data('tier'));
 
   return <p>Subscription tier: {tier || 'loading...'}</p>;
+}
+```
+
+#### Example 3: Derived stats via aggregation
+
+This example shows how to publish derived data from a Mongo aggregation.
+
+It uses autorun to recalculate when the underlying collections change, and setData to push aggregated stats to the client.
+
+Server:
+```javascript
+// /server/publications.js
+import { Meteor } from 'meteor/meteor';
+import { Mongo } from 'meteor/mongo';
+
+export const Posts = new Mongo.Collection('posts');
+export const Likes = new Mongo.Collection('likes');
+
+Meteor.publish('stats.authorActivity', function () {
+  const pub = this;
+
+  pub.autorun(async () => {
+    // Reactive deps: touching cursors ensures recalculation on changes
+    await Posts.find({}, { fields: { authorId: 1 } }).countAsync();
+    await Likes.find({}, { fields: { postId: 1 } }).countAsync();
+
+    const pipeline = [
+      { $lookup: { from: 'likes', localField: '_id', foreignField: 'postId', as: 'likes' } },
+      { $group: {
+          _id: '$authorId',
+          postsCount: { $sum: 1 },
+          likesCount: { $sum: { $size: '$likes' } },
+        }
+      },
+      { $project: { _id: 0, authorId: '$_id', postsCount: 1, likesCount: 1 } },
+    ];
+
+    const stats = await Posts.rawCollection().aggregate(pipeline).toArray();
+    await pub.setData('authorStats', stats);
+    
+    pub.ready();
+  });
+});
+```
+
+Client (React + useTracker):
+```javascript
+import React from 'react';
+import { Meteor } from 'meteor/meteor';
+import { useTracker } from 'meteor/react-meteor-data';
+
+export default function AuthorStats() {
+  const sub = Meteor.subscribe('stats.authorActivity');
+  const stats = useTracker(() => sub.data('authorStats') || []);
+
+  return (
+    <ul>
+      {stats.map(({ authorId, postsCount, likesCount }) => (
+        <li key={authorId}>
+          {`${authorId}: ${postsCount} posts · ${likesCount} likes`}
+        </li>
+      ))}
+    </ul>
+  );
 }
 ```
 
