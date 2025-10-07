@@ -185,6 +185,28 @@ export default function SubscriptionInfo({ userId }) {
 }
 ```
 
+## TypeScript Support
+
+This package includes TypeScript definitions for all its APIs. To enable type checking:
+
+1. Make sure your app has [zodern:types](https://github.com/zodern/meteor-types) installed:
+
+```bash
+meteor add zodern:types
+```
+
+2. Import the package using the Meteor import syntax:
+
+```typescript
+import { AsyncTracker, ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
+```
+
+This package extends Meteor's core types to add reactive publishing capabilities. The type definitions include:
+
+- Extensions to `Meteor.publish` context with the `autorun` method
+- The `Meteor.publishReactive` function
+- `AsyncTracker` and `ReactiveVarAsync` with full generic type support
+
 ## Roadmap
 
 - **Stability** ✅
