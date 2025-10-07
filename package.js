@@ -8,7 +8,7 @@ Package.describe({
 
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
-  api.use(['ecmascript', 'mongo', 'minimongo']);
+  api.use(['ecmascript', 'mongo', 'minimongo', 'zodern:types']);
 
   // Export the AsyncTracker and ReactiveVarAsync
   api.export('AsyncTracker');
