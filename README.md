@@ -8,7 +8,7 @@
 
 - ⚙️ Supports `autorun` in publication functions for **realtime updates**
 
-- 🧵 Integrates `AsyncTracker` and `ReactiveVarAsync` for **async-compatible reactivity**
+- 🧵 Integrates `AsyncTracker` and `ReactiveVarAsync` for **async-compatible reactivity*
 
 - 🚀 Optimized with **unique cursors per computation** to avoid redundant re-instantiation
 
@@ -139,8 +139,8 @@ import { Posts } from '/imports/api/posts.js';
 const sub = Meteor.subscribe('posts.infiniteScroll');
 
 // Reactive total count
-Tracker.autorun(() => {
-  console.log('Total posts:', sub.data('countAll'));
+Tracker.autorun(async () => {
+  console.log('Total posts:', await sub.data('countAll'));
 });
 
 // Adjust published window without restarting
@@ -191,7 +191,6 @@ It uses autorun to recalculate when the underlying collections change, and setDa
 
 Server:
 ```javascript
-// /server/publications.js
 import { Meteor } from 'meteor/meteor';
 import { Mongo } from 'meteor/mongo';
 
@@ -265,7 +264,7 @@ import { AsyncTracker, ReactiveVarAsync } from 'meteor/nachocodoner:reactive-pub
 
 This package extends Meteor's core types to add reactive publishing capabilities. The type definitions include:
 
-- Extensions to `Meteor.publish` context with the `autorun` method
+- Extensions to `Meteor.publish` context with the `autorun`, `data` and `setData` methods
 - The `Meteor.publishReactive` function
 - `AsyncTracker` and `ReactiveVarAsync` with full generic type support
 
