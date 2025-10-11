@@ -1,6 +1,6 @@
 Package.describe({
   name: 'nachocodoner:reactive-publish',
-  version: '1.0.0-rc.1',
+  version: '1.0.0',
   summary: 'Reactive publish for Meteor with async support',
   git: 'https://github.com/nachocodoner/meteor-reactive-publish',
   documentation: 'README.md',
@@ -8,7 +8,7 @@ Package.describe({
 
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
-  api.use(['ecmascript', 'mongo', 'minimongo', 'zodern:types']);
+  api.use(['ecmascript', 'mongo', 'minimongo', 'zodern:types@1.0.13']);
 
   // Export the AsyncTracker and ReactiveVarAsync
   api.export('AsyncTracker');

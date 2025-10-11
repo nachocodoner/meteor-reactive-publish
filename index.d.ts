@@ -200,7 +200,7 @@ declare module 'meteor/meteor' {
     ): any;
   }
 
-  // Extend the Meteor.Subscription interface to include autorun
+  // Extend the Subscription interface to include autorun
   interface Subscription {
     /**
      * Run a function reactively in the publish context
