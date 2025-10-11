@@ -185,19 +185,6 @@ declare module 'meteor/nachocodoner:reactive-publish' {
 declare module 'meteor/meteor' {
   // Extend the Meteor namespace
   namespace Meteor {
-    // Extend the Meteor.Subscription interface to include autorun
-    interface Subscription {
-      /**
-       * Run a function reactively in the publish context
-       * @template T The return type of the computation function
-       * @param {Function} runFunc The function to run reactively
-       * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
-       */
-      autorun<T = any>(
-        runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
-      ): Promise<AsyncTrackerComputation<T>>;
-    }
-
     /**
      * Create a reactive publication
      * @template T The return type of the publish function
@@ -211,5 +198,18 @@ declare module 'meteor/meteor' {
       publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
       options?: object
     ): any;
+  }
+
+  // Extend the Meteor.Subscription interface to include autorun
+  interface Subscription {
+    /**
+     * Run a function reactively in the publish context
+     * @template T The return type of the computation function
+     * @param {Function} runFunc The function to run reactively
+     * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
+     */
+    autorun<T = any>(
+      runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
+    ): Promise<AsyncTrackerComputation<T>>;
   }
 }
