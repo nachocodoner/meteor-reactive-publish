@@ -1,3 +1,4 @@
+import 'meteor/meteor';
 import { AsyncTrackerComputation } from 'meteor/nachocodoner:reactive-publish';
 
 declare module 'meteor/nachocodoner:reactive-publish' {
