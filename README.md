@@ -26,6 +26,8 @@ meteor add nachocodoner:reactive-publish@1.0.0-rc.1
 
 ### Reactive Composed Data Publish
 
+These examples show how to publish composed data reactively, letting clients receive updates when related fields change.
+
 #### Basic
 
 ```javascript
@@ -56,6 +58,8 @@ Meteor.publishReactive('subscribed-posts', async function () {
 
 #### Time-based queries
 
+This example shows how you can use `ReactiveVarAsync` to control the autorun block and re-publish on time intervals.
+
 ```javascript
 import { ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
 
@@ -80,6 +84,8 @@ Meteor.publish('recent-posts', function () {
 ```
 
 #### Multiple autoruns
+
+This example shows define multiple autoruns for more efficient reactive triggers.
 
 ```javascript
 Meteor.publish('users-posts-and-addresses', function (userId) {
