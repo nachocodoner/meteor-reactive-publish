@@ -1,5 +1,6 @@
 import 'meteor/meteor';
 import { AsyncTrackerComputation } from 'meteor/nachocodoner:reactive-publish';
+export {}; // keep it a module even if bundlers treeshake
 
 declare module 'meteor/nachocodoner:reactive-publish' {
   /**
