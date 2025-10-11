@@ -1,4 +1,6 @@
+import 'meteor/meteor';
 import { AsyncTrackerComputation } from 'meteor/nachocodoner:reactive-publish';
+export {}; // keep it a module even if bundlers treeshake
 
 declare module 'meteor/nachocodoner:reactive-publish' {
   /**
@@ -183,38 +185,19 @@ declare module 'meteor/nachocodoner:reactive-publish' {
 declare module 'meteor/meteor' {
   // Extend the Meteor namespace
   namespace Meteor {
-    // Extend the Meteor.Subscription interface to include autorun
-    interface Subscription {
-      /**
-       * Run a function reactively in the publish context
-       * @template T The return type of the computation function
-       * @param {Function} runFunc The function to run reactively
-       * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
-       */
-      autorun<T = any>(
-        runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
-      ): Promise<AsyncTrackerComputation<T>>;
-
-      /**
-       * Get data from the subscription
-       * @template T The type of the data
-       * @param {string|object} [path] Optional path to get specific data
-       * @param {Function} [equalsFunc] Optional equality function
-       * @returns {Promise<T>} The data
-       */
-      data<T = any>(
-        path?: string | object,
-        equalsFunc?: (a: T, b: T) => boolean
-      ): Promise<T>;
-
-      /**
-       * Set data in the subscription
-       * @param {string|object} path Path or object with data to set
-       * @param {any} [value] Value to set (not needed if path is an object)
-       * @returns {Promise<void>}
-       */
-      setData(path: string | object, value?: any): Promise<void>;
-    }
+    /**
+     * Create a reactive publication
+     * @template T The return type of the publish function
+     * @template Args The types of the arguments passed to the publish function
+     * @param {string} name The name of the publication
+     * @param {Function} publishFunction The publish function
+     * @param {Object} options Options for the publication
+     */
+    function publishReactive<T = any, Args extends any[] = any[]>(
+      name: string,
+      publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
+      options?: object
+    ): any;
 
     // Extend the Meteor.SubscriptionHandle interface to include data and setData
     interface SubscriptionHandle {
@@ -238,19 +221,38 @@ declare module 'meteor/meteor' {
        */
       setData(path: string | object, value?: any): Promise<void>;
     }
+  }
+
+  // Extend the Subscription interface to include autorun
+  interface Subscription {
+    /**
+     * Run a function reactively in the publish context
+     * @template T The return type of the computation function
+     * @param {Function} runFunc The function to run reactively
+     * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
+     */
+    autorun<T = any>(
+      runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
+    ): Promise<AsyncTrackerComputation<T>>;
 
     /**
-     * Create a reactive publication
-     * @template T The return type of the publish function
-     * @template Args The types of the arguments passed to the publish function
-     * @param {string} name The name of the publication
-     * @param {Function} publishFunction The publish function
-     * @param {Object} options Options for the publication
+     * Get data from the subscription
+     * @template T The type of the data
+     * @param {string|object} [path] Optional path to get specific data
+     * @param {Function} [equalsFunc] Optional equality function
+     * @returns {Promise<T>} The data
      */
-    function publishReactive<T = any, Args extends any[] = any[]>(
-      name: string,
-      publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
-      options?: object
-    ): any;
+    data<T = any>(
+      path?: string | object,
+      equalsFunc?: (a: T, b: T) => boolean
+    ): Promise<T>;
+
+    /**
+     * Set data in the subscription
+     * @param {string|object} path Path or object with data to set
+     * @param {any} [value] Value to set (not needed if path is an object)
+     * @returns {Promise<void>}
+     */
+    setData(path: string | object, value?: any): Promise<void>;
   }
 }
