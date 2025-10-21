@@ -26,6 +26,8 @@ meteor add nachocodoner:reactive-publish@1.0.0-rc.1
 
 ### Reactive Composed Data Publish
 
+These examples show how to publish composed data reactively, letting clients receive updates when related fields change.
+
 #### Basic
 
 ```javascript
@@ -56,6 +58,8 @@ Meteor.publishReactive('subscribed-posts', async function () {
 
 #### Time-based queries
 
+This example shows how you can use `ReactiveVarAsync` to control the autorun block and re-publish on time intervals.
+
 ```javascript
 import { ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
 
@@ -81,6 +85,8 @@ Meteor.publish('recent-posts', function () {
 
 #### Multiple autoruns
 
+This example shows define multiple autoruns for more efficient reactive triggers.
+
 ```javascript
 Meteor.publish('users-posts-and-addresses', function (userId) {
   this.autorun(async () => {
@@ -103,7 +109,7 @@ Meteor.publish('users-posts-and-addresses', function (userId) {
 
 These examples show how to publish derived data reactively, allowing clients to receive updates without restarting subscriptions.
 
-#### Example 1: Infinite scrolling and counts
+#### Infinite scrolling and counts
 
 This example shows how to publish a collection with a reactive total count and allow the client to increase the limit of published items without restarting the subscription.
 
@@ -147,7 +153,7 @@ Tracker.autorun(async () => {
 sub.setData('limit', 20);
 ```
 
-#### Example 2: External reactive source
+#### External reactive source
 
 This example shows how to publish data reactively from an external source. Here it's simulated with an interval toggling a user's subscription tier, but in practice it could be an API, another database, or any third-party service.
 
@@ -183,7 +189,7 @@ export default function SubscriptionInfo({ userId }) {
 }
 ```
 
-#### Example 3: Derived stats via aggregation
+#### Derived stats via aggregation
 
 This example shows how to publish derived data from a Mongo aggregation.
 
