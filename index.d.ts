@@ -198,6 +198,29 @@ declare module 'meteor/meteor' {
       publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
       options?: object
     ): any;
+
+    // Extend the Meteor.SubscriptionHandle interface to include data and setData
+    interface SubscriptionHandle {
+      /**
+       * Get data from the subscription
+       * @template T The type of the data
+       * @param {string|object} [path] Optional path to get specific data
+       * @param {Function} [equalsFunc] Optional equality function
+       * @returns {Promise<T>} The data
+       */
+      data<T = any>(
+        path?: string | object,
+        equalsFunc?: (a: T, b: T) => boolean
+      ): Promise<T>;
+
+      /**
+       * Set data in the subscription
+       * @param {string|object} path Path or object with data to set
+       * @param {any} [value] Value to set (not needed if path is an object)
+       * @returns {Promise<void>}
+       */
+      setData(path: string | object, value?: any): Promise<void>;
+    }
   }
 
   // Extend the Subscription interface to include autorun
@@ -211,5 +234,25 @@ declare module 'meteor/meteor' {
     autorun<T = any>(
       runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
     ): Promise<AsyncTrackerComputation<T>>;
+
+    /**
+     * Get data from the subscription
+     * @template T The type of the data
+     * @param {string|object} [path] Optional path to get specific data
+     * @param {Function} [equalsFunc] Optional equality function
+     * @returns {Promise<T>} The data
+     */
+    data<T = any>(
+      path?: string | object,
+      equalsFunc?: (a: T, b: T) => boolean
+    ): Promise<T>;
+
+    /**
+     * Set data in the subscription
+     * @param {string|object} path Path or object with data to set
+     * @param {any} [value] Value to set (not needed if path is an object)
+     * @returns {Promise<void>}
+     */
+    setData(path: string | object, value?: any): Promise<void>;
   }
 }
