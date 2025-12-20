@@ -12,6 +12,7 @@ PACKAGE_PATH="meteor-core/packages/$PACKAGE_DIR_NAME"
 echo "Creating package directory structure in meteor-core/packages"
 mkdir -p "$PACKAGE_PATH/lib/ReactiveAsync"
 mkdir -p "$PACKAGE_PATH/lib/ReactiveMongo"
+mkdir -p "$PACKAGE_PATH/lib/ReactiveData"
 
 # Copy package.js with api.versionsFrom, package name lines, and Package.onTest block commented out
 echo "Copying package.js with api.versionsFrom, package name lines, and Package.onTest block commented out"
@@ -43,6 +44,7 @@ cp main.js "$PACKAGE_PATH/"
 echo "Copying lib files"
 cp lib/ReactiveAsync/*.js "$PACKAGE_PATH/lib/ReactiveAsync/"
 cp lib/ReactiveMongo/*.js "$PACKAGE_PATH/lib/ReactiveMongo/"
+cp lib/ReactiveData/*.js "$PACKAGE_PATH/lib/ReactiveData/"
 cp lib/ReactivePublishServer.js "$PACKAGE_PATH/lib/"
 cp lib/ReactivePublish.tests.js "$PACKAGE_PATH/lib/"
 cp lib/ReactivePublishVsNonReactive.tests.js "$PACKAGE_PATH/lib/"
@@ -50,6 +52,10 @@ cp lib/ReactivePublishVsNonReactive.tests.js "$PACKAGE_PATH/lib/"
 # Add nachocodoner:reactive-publish to the tinytest package
 echo "Adding $PACKAGE_NAME to tinytest package.js"
 sed -i "/api.mainModule('tinytest_client.js'/i \ \ api.use('$PACKAGE_NAME');" meteor-core/packages/tinytest/package.js
+
+# Replace expectedMessages in livedata_server_tests.js as is now expected by subscription-data changes
+echo "Replacing expectedMessages in livedata_server_tests.js as is now expected by subscription-data changes"
+sed -i "s/const expectedMessages = \['sub', 'added', 'ready', 'sub', 'unsub', 'added', 'ready', 'nosub'\]/const expectedMessages = \['sub', 'added', 'added', 'ready', 'sub', 'unsub', 'added', 'added', 'ready', 'nosub', 'removed'\]/" meteor-core/packages/ddp-server/livedata_server_tests.js
 
 if [[ ! -d "./meteor-core/dev_bundle" ]]; then
   # Prepare meteor-core
@@ -81,7 +87,7 @@ TEST_EXIT_CODE=$?
 # Reset the changes to the puppeteer_runner.js and tinytest package.js files
 echo "Reverting changes to puppeteer_runner.js and tinytest package.js"
 cd meteor-core
-git checkout -- packages/test-in-console/puppeteer_runner.js packages/tinytest/package.js
+git checkout -- packages/test-in-console/puppeteer_runner.js packages/tinytest/package.js packages/ddp-server/livedata_server_tests.js
 cd ..
 
 # Remove the copied package files

@@ -1,6 +1,6 @@
 Package.describe({
   name: 'nachocodoner:reactive-publish',
-  version: '1.0.0',
+  version: '1.1.0-beta.1',
   summary: 'Reactive publish for Meteor with async support',
   git: 'https://github.com/nachocodoner/meteor-reactive-publish',
   documentation: 'README.md',
@@ -8,17 +8,37 @@ Package.describe({
 
 Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
-  api.use(['ecmascript', 'mongo', 'minimongo', 'zodern:types@1.0.13']);
+  api.use([
+    'ecmascript',
+    'mongo',
+    'minimongo',
+    'tracker',
+    'reactive-var',
+    'zodern:types@1.0.13',
+  ]);
 
   // Export the AsyncTracker and ReactiveVarAsync
   api.export('AsyncTracker');
   api.export('ReactiveVarAsync');
 
-  // Add the files
+  // Add the files for client and server
   api.addFiles(
     [
       'lib/ReactiveAsync/AsyncTracker.js',
       'lib/ReactiveAsync/ReactiveVarAsync.js',
+      'lib/ReactiveAsync/ComputedField.js',
+      'lib/ReactiveAsync/DataLookup.js',
+      'lib/ReactiveData/ReactiveData.js',
+    ],
+    ['client', 'server']
+  );
+
+  // Add the files for client only
+  api.addFiles(['lib/ReactiveAsync/ClientAsyncContext.js'], 'client');
+
+  // Add the files for server
+  api.addFiles(
+    [
       'lib/ReactiveMongo/ReactiveMongoServer.js',
       'lib/ReactivePublishServer.js',
     ],
@@ -26,7 +46,7 @@ Package.onUse(function (api) {
   );
 
   // Add the main module for the server
-  api.mainModule('main.js', 'server');
+  api.mainModule('main.js', ['client', 'server']);
 });
 
 Package.onTest(function (api) {
@@ -43,18 +63,18 @@ Package.onTest(function (api) {
   api.use('nachocodoner:reactive-publish');
 
   // Add the test files for server
-  api.addFiles(
-    [
-      'lib/ReactiveAsync/AsyncTracker.tests.js',
-      'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
-      'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
-      'lib/ReactiveMongo/ReactiveMongoServer.tests.js',
-    ],
-    'server'
-  );
+  api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+
   // Add the test files for server and client
   api.addFiles([
+    'lib/ReactiveAsync/AsyncTracker.tests.js',
+    'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
+    'lib/ReactiveAsync/ComputedField.tests.js',
+    'lib/ReactiveAsync/DataLookup.tests.js',
+    'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
     'lib/ReactivePublish.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
+    'lib/ReactiveData/ReactiveData.tests.js',
+    'lib/ReactiveData/ReactiveDataShowcase.tests.js',
   ]);
 });
