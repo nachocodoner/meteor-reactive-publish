@@ -25,7 +25,6 @@ export default [
       '**/.meteor/local/',
       '.npm/',
       '.idea/',
-      '.husky/',
     ],
   },
 
