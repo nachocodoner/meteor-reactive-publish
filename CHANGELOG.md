@@ -12,7 +12,7 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
-## [1.1.0] — Reactive Derived Data Publish
+## [1.1.0] Reactive Derived Data Publish
 
 This release introduces **derived data publishing** ([peerlibrary:subscription-data](https://github.com/peerlibrary/meteor-subscription-data)), a way to push arbitrary reactive values to clients alongside (or instead of) cursor data, without restarting subscriptions.
 
@@ -40,7 +40,7 @@ See [examples in README →](./README.md#reactive-derived-data-publish)
 
 ---
 
-## [1.0.0] — Reactive Composed Data Publish
+## [1.0.0] Reactive Composed Data Publish
 
 Initial release. Brings reactive publishing with async support to **Meteor 3**, reviving and modernizing the work from [peerlibrary:reactive-publish](https://github.com/peerlibrary/meteor-reactive-publish) for the fiber-free environment.
 
@@ -48,7 +48,7 @@ Initial release. Brings reactive publishing with async support to **Meteor 3**, 
 
 **`this.autorun(fn)` in publications**
 
-Run an autorun block inside a publication. When reactive dependencies change, the block reruns and the published cursors update — without restarting the subscription. Supports `async` functions.
+Run an autorun block inside a publication. When reactive dependencies change, the block reruns and the published cursors update, without restarting the subscription. Supports `async` functions.
 
 **`Meteor.publishReactive(name, fn)`**
 
