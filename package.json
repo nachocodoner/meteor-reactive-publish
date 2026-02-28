@@ -8,7 +8,7 @@
     "example": "examples"
   },
   "scripts": {
-    "prepare": "husky install",
+    "prepare": "lefthook install",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "publish": "./scripts/publish.sh",
@@ -36,7 +36,7 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-prettier": "^5.2.3",
     "eslint-plugin-react": "^7.37.4",
-    "husky": "^9.1.7",
+    "lefthook": "^2.1.1",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.3",
     "puppeteer": "^24.4.0",

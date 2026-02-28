@@ -1,0 +1,5 @@
+pre-commit:
+  commands:
+    lint-staged:
+      glob: "*.{js,jsx,ts,tsx}"
+      run: npx lint-staged
