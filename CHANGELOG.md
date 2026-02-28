@@ -64,8 +64,8 @@ Cursors are deduplicated per autorun computation to avoid redundant re-instantia
 
 ### Highlights
 
-- **Reactive composed data** — publish related collections that update when foreign keys change (e.g. user's subscribed posts).
-- **Time-based queries** — use `ReactiveVarAsync` with `setInterval` to republish data on a schedule.
-- **Multiple autoruns** — define independent autorun blocks in one publication for fine-grained reactive triggers per collection.
+- **Reactive composed data**: publish related collections that update when foreign keys change (e.g. user's subscribed posts).
+- **Time-based queries**: use `ReactiveVarAsync` with `setInterval` to republish data on a schedule.
+- **Multiple autoruns**: define independent autorun blocks in one publication for fine-grained reactive triggers per collection.
 
 See [examples in README →](./README.md#reactive-composed-data-publish)
