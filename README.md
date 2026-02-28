@@ -19,7 +19,7 @@
 ## Installation
 
 ``` bash
-meteor add nachocodoner:reactive-publish@1.1.0
+meteor add nachocodoner:reactive-publish@1.1.1
 ```
 
 ## Usage
