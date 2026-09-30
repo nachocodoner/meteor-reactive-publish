@@ -57,6 +57,8 @@ Package.onTest(function (api) {
     'random',
     'check',
     'jquery',
+    'ddp-client',
+    'mongo',
   ]);
   api.use(['accounts-base', 'accounts-password']);
   api.use(['tinytest', 'test-helpers']);
@@ -73,6 +75,7 @@ Package.onTest(function (api) {
     'lib/ReactiveAsync/DataLookup.tests.js',
     'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
     'lib/ReactivePublish.tests.js',
+    'lib/ReactivePublishLifecycle.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
     'lib/ReactiveData/ReactiveData.tests.js',
     'lib/ReactiveData/ReactiveDataShowcase.tests.js',
