@@ -14,7 +14,16 @@
     "publish": "./scripts/publish.sh",
     "test": "meteor test-packages ./",
     "test:ci": "METEOR_PACKAGE_DIRS=../ meteor npx mtest --package nachocodoner:reactive-publish --once",
-    "test:core": "./scripts/test-core.sh"
+    "test:core": "./scripts/test-core.sh",
+    "bench": "node bench/cli.mjs",
+    "bench:setup": "npm --prefix bench ci",
+    "bench:test": "npm --prefix bench test",
+    "bench:smoke": "node bench/cli.mjs run --profile smoke --scenario sorted-window --adapter reactive",
+    "bench:compare": "node bench/cli.mjs compare",
+    "bench:libraries": "node bench/cli.mjs libraries",
+    "bench:comprehensive": "node bench/cli.mjs comprehensive",
+    "bench:all": "node bench/cli.mjs all",
+    "bench:profile": "node bench/cli.mjs profile"
   },
   "repository": {
     "type": "git",

@@ -4,3 +4,8 @@ build/
 .meteor/local
 .idea
 .babel-cache
+bench/results/
+bench/cache/
+**/.meteor/local/
+*.cpuprofile
+*.heapsnapshot
