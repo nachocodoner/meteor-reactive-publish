@@ -22,6 +22,7 @@
     "bench:compare": "node bench/cli.mjs compare",
     "bench:libraries": "node bench/cli.mjs libraries",
     "bench:comprehensive": "node bench/cli.mjs comprehensive",
+    "bench:experiments": "node bench/experiments.mjs",
     "bench:all": "node bench/cli.mjs all",
     "bench:profile": "node bench/cli.mjs profile"
   },
