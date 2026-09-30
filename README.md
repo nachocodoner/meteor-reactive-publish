@@ -285,6 +285,8 @@ This package extends Meteor's core types to add reactive publishing capabilities
     - Support for publishing derived data reactively
 
 - **Performance**
+    - [Run the repository benchmark suite](./bench/README.md) for DDP workloads, library comparisons, and regression reports
+    - Use `npm run bench:comprehensive` for repeated CPU, memory, event-loop, GC, load, retention, and MongoDB comparisons with publish-composite
     - [Run benchmarks](https://github.com/meteor/performance) to identify performance improvement opportunities
     - Compare results with [`reywood:publish-composite`](https://github.com/Meteor-Community-Packages/meteor-publish-composite) to ensure equal or better behavior
 

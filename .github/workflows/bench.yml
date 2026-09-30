@@ -1,0 +1,146 @@
+name: Publication benchmarks
+
+on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'main.js'
+      - 'package.js'
+      - 'bench/**'
+      - '.github/workflows/bench.yml'
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Scenario for repeated measurements
+        default: sorted-window
+        type: string
+      pairs:
+        description: Independent baseline and candidate pairs
+        default: '5'
+        type: string
+      comprehensive_preset:
+        description: Comprehensive library comparison (full is a longer experiment)
+        default: full
+        type: choice
+        options: [full, quick, disabled]
+  schedule:
+    - cron: '17 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+          cache-dependency-path: bench/package-lock.json
+      - run: npm ci --prefix bench
+      - run: npm run bench:test
+
+  smoke:
+    needs: harness
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.meteor
+          key: bench-meteor-3.3.2-${{ runner.os }}-${{ hashFiles('bench/variants/**/*.versions') }}
+      - uses: meteorengineer/setup-meteor@v2
+        with:
+          meteor-release: '3.3.2'
+      - run: npm ci --prefix bench
+      - name: Publication smoke checks
+        run: |
+          npm run bench -- run --adapter native --output bench/results/smoke/native.json
+          npm run bench -- run --adapter installed --output bench/results/smoke/installed.json
+          npm run bench -- run --adapter composite --output bench/results/smoke/composite.json
+          npm run bench -- run --adapter reactive --scenario subscription-data --output bench/results/smoke/data.json
+      - name: Equivalent library smoke comparisons
+        run: npm run bench:libraries -- --suite smoke --pairs 1 --output bench/results/libraries
+      - name: Reactive publication regression checks
+        run: |
+          for scenario in plain-cursor dependent-posts one-to-many deep-join fanout multiple-autoruns infinite-scroll async-pressure; do
+            npm run bench -- run --adapter reactive --scenario "$scenario" --output "bench/results/regressions/$scenario.json"
+          done
+      - name: Full scenario report
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        # Composite relationship-refresh failures remain invalid; see bench/FINDINGS.md.
+        continue-on-error: true
+        run: npm run bench:all -- --pairs 1 --profile smoke --output bench/results/full
+      - name: Paired measurements
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        env:
+          BENCH_SCENARIO: ${{ inputs.scenario || 'sorted-window' }}
+          BENCH_PAIRS: ${{ inputs.pairs || '5' }}
+        run: npm run bench -- paired --base HEAD --scenario "$BENCH_SCENARIO" --pairs "$BENCH_PAIRS" --output bench/results/calibration
+      - name: PR baseline comparison
+        if: github.event_name == 'pull_request'
+        env:
+          BENCH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: npm run bench -- paired --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
+      - name: Job summary
+        if: always()
+        run: |
+          find bench/results -name '*.md' -type f -exec cat {} \; >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publication-benchmark-results
+          path: bench/results/
+          retention-days: 30
+
+  comprehensive:
+    needs: harness
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.comprehensive_preset != 'disabled')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.meteor
+          key: bench-meteor-3.3.2-${{ runner.os }}-${{ hashFiles('bench/variants/**/*.versions') }}
+      - uses: meteorengineer/setup-meteor@v2
+        with:
+          meteor-release: '3.3.2'
+      - run: npm ci --prefix bench
+      - name: Comprehensive paired library experiment
+        # Correctness failures and capacity timeouts stay visible in the report.
+        # Hosted-runner timing is advisory; this does not enable performance gates.
+        continue-on-error: true
+        env:
+          BENCH_PRESET: ${{ inputs.comprehensive_preset || 'full' }}
+        run: npm run bench:comprehensive -- --preset "$BENCH_PRESET" --output bench/results/comprehensive
+      - name: Comparison summary
+        if: always()
+        run: |
+          if test -f bench/results/comprehensive/report.md; then
+            cat bench/results/comprehensive/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprehensive-library-comparison
+          path: bench/results/comprehensive/
+          retention-days: 30
