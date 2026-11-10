@@ -16,7 +16,7 @@ npm run bench:setup
 # Quick comparison of the small validated common subset (six app runs).
 npm run bench:libraries -- --suite smoke --pairs 1 --output bench/results/libraries-smoke
 
-# Audit all nine semantically equivalent workloads, including known failures.
+# Audit all ten semantically equivalent workloads, including known failures.
 npm run bench:libraries -- --suite compatible --pairs 1 --output bench/results/libraries-compatible
 
 # Repeated measurements of one case at a larger scale.
@@ -33,6 +33,7 @@ Each pair runs composite then reactive, reversing that order on the next pair. T
 | Case                     | Common observable behavior                                                                   | Included in smoke |
 | ------------------------ | -------------------------------------------------------------------------------------------- | ----------------- |
 | `plain-cursor`           | Active-post CRUD, membership changes, projected fields and field clearing                    | No                |
+| `personalized-selectors` | Per-client author groups, overlapping shared-post updates and field clearing with exact per-client data checks | No |
 | `dependent-posts`        | Reader document and exactly its referenced posts after replacing IDs                         | No                |
 | `one-to-many`            | Active posts and their comments after child moves, parent membership changes and child edits | No                |
 | `deep-join`              | Posts → comments → deduplicated authors through relationship changes                         | No                |

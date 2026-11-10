@@ -1,4 +1,5 @@
 import { canonical } from '../clients/document-store.mjs';
+import { lifecycleErrors, lifecycleMarkdown } from './lifecycle.mjs';
 
 export function summarize(values) {
   if (!values.length)
@@ -19,7 +20,7 @@ export function summarize(values) {
 }
 
 export function validateResult(result) {
-  const errors = [];
+  const errors = lifecycleErrors(result);
   if (result.schemaVersion !== 1) errors.push('Unsupported result schema');
   if (result.status !== 'valid' || result.correctness?.passed !== true)
     errors.push('Run did not pass correctness');
@@ -341,6 +342,18 @@ function registryFor(result) {
   return [
     ...metricRegistry,
     ...runtimeMetricRegistry,
+    ...(result.config.lifecycle
+      ? [
+          cost('meteor_method_ms.p95', 'ms', 1, {
+            samplePath: 'meteor_method_ms.sample_count',
+            minSamples: 20,
+          }),
+          cost('meteor_initial_ready_ms.p95', 'ms', 1, {
+            samplePath: 'meteor_initial_ready_ms.sample_count',
+            minSamples: 20,
+          }),
+        ]
+      : []),
     ...(result.config.databaseMetrics || result.config.databaseProfile
       ? databaseRegistry
       : []),
@@ -608,6 +621,7 @@ export function resultMarkdown(result) {
     `\n\nCompleted operations: ${result.metrics?.completed_operations || 0}. CPU: ${number(result.metrics?.app_cpu_ms)} ms. DDP payload: ${number(result.metrics?.ddp_payload_bytes)} bytes.\n\n` +
     (result.correctness.errors.length
       ? result.correctness.errors.map((error) => `- ${error}`).join('\n') + '\n'
-      : `Correctness passed. Resource cleanup ${result.phases.cleanup?.verified ? 'verified' : 'not instrumented'}.\n`)
+      : `Correctness passed. Resource cleanup ${result.phases.cleanup?.verified ? 'verified' : 'not instrumented'}.\n`) +
+    lifecycleMarkdown(result)
   );
 }

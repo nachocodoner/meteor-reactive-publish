@@ -7,9 +7,17 @@ import { fixture } from '../imports/model.js';
 import * as adapter from '../imports/adapter.js';
 import { createMetrics } from '../imports/metrics.js';
 import { backendBench } from '../imports/backend.js';
+import { createLifecycleCollector } from '../imports/lifecycle.js';
 
 const config = JSON.parse(process.env.BENCH_CONFIG);
 const token = process.env.BENCH_TOKEN;
+const lifecycle = config.lifecycle
+  ? createLifecycleCollector(Package.instrumentation?.Instrumentation)
+  : null;
+const snapshot = () => ({
+  ...metrics.snapshot(),
+  ...(lifecycle ? { lifecycle: lifecycle.snapshot() } : {}),
+});
 const authorize = (value) => {
   const input = Buffer.from(typeof value === 'string' ? value : '');
   const expected = Buffer.from(token);
@@ -28,9 +36,15 @@ const metadata = {
   reactiveLoaded: !!Package['nachocodoner:reactive-publish'],
   compositeLoaded: !!Package['reywood:publish-composite'],
   sourceHash: config.sourceHash,
+  lifecycle: !!lifecycle,
 };
 
 Meteor.methods({
+  'bench.lifecycleProbe'(credential, fail) {
+    authorize(credential);
+    if (fail) throw new Meteor.Error('lifecycle-probe');
+    return true;
+  },
   async 'bench.mutate'(credential, operation) {
     authorize(credential);
     if (operation.kind === 'external') {
@@ -71,8 +85,20 @@ WebApp.connectHandlers.use('/__bench', async (request, response) => {
         resources: metrics.resources(),
       });
     if (!ready) return reply(503, { error: 'Not seeded' });
-    if (action === '/start') return reply(200, metrics.reset());
-    if (action === '/snapshot') return reply(200, metrics.snapshot());
+    if (action === '/start') {
+      lifecycle?.reset();
+      return reply(200, metrics.reset());
+    }
+    if (action === '/snapshot') return reply(200, snapshot());
+    if (action === '/lifecycle-probe' && lifecycle) {
+      await Meteor.callAsync('bench.lifecycleProbe', token, false);
+      try {
+        await Meteor.callAsync('bench.lifecycleProbe', token, true);
+      } catch (error) {
+        if (error.error !== 'lifecycle-probe') throw error;
+      }
+      return reply(200, lifecycle.snapshot());
+    }
     if (action === '/retention') {
       if (!config.retention || typeof global.gc !== 'function')
         throw new Error(
@@ -102,6 +128,8 @@ Meteor.startup(async () => {
     await collections[name].rawCollection().insertMany(docs);
   }
   await collections.bench_posts.rawCollection().createIndex({ active: 1 });
+  if (config.scenario === 'personalized-selectors')
+    await collections.bench_posts.rawCollection().createIndex({ authorId: 1 });
   await collections.bench_posts
     .rawCollection()
     .createIndex({ score: -1, _id: 1 });

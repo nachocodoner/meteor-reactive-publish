@@ -13,7 +13,7 @@
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "publish": "./scripts/publish.sh",
     "test": "meteor test-packages ./",
-    "test:ci": "METEOR_PACKAGE_DIRS=../ meteor npx mtest --package nachocodoner:reactive-publish --once",
+    "test:ci": "node scripts/test-package.mjs",
     "test:core": "./scripts/test-core.sh",
     "bench": "node bench/cli.mjs",
     "bench:setup": "npm --prefix bench ci",
@@ -46,11 +46,13 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-prettier": "^5.2.3",
     "eslint-plugin-react": "^7.37.4",
+    "globals": "^16.0.0",
     "lefthook": "^2.1.1",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.3",
     "puppeteer": "^24.4.0",
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "typescript": "~5.8.3"
   },
   "lint-staged": {
     "**/*.{js,ts,tsx}": [

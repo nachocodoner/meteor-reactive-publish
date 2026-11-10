@@ -17,7 +17,7 @@ test('comprehensive defaults use substantial independent repetitions and exactly
   assert.equal(plan.pairs, 5);
   assert.equal(plan.profile.operations, 1000);
   assert.equal(plan.profile.warmup, 100);
-  assert.equal(plan.cases.filter((entry) => entry.stage === 'core').length, 9);
+  assert.equal(plan.cases.filter((entry) => entry.stage === 'core').length, 10);
   for (const entry of plan.cases) {
     assert.deepEqual(entry.adapters, ['composite', 'reactive']);
     assert.equal(entry.run.databaseMetrics, true);

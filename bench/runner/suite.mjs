@@ -77,6 +77,7 @@ export async function runSuite(
       seed: options.seed ?? 1,
       profile: options.profile,
       instrumentation: options.instrumentation || 'observers',
+      lifecycle: !!options.lifecycle,
       fanoutRate: options.rate || 0,
       browser: !!options.browser,
       comprehensive: options.comprehensive || null,
@@ -162,6 +163,11 @@ export async function runSuite(
           record.generator = result.phases?.generator;
           record.failure = result.phases?.failure;
           record.failureProgress = result.phases?.failureProgress;
+          if (options.lifecycle)
+            record.lifecycle = {
+              initial: result.phases?.initial?.server?.lifecycle,
+              cleanup: result.phases?.cleanup?.end?.lifecycle,
+            };
           const errors = validateResult(result);
           if (options.comprehensive && !errors.length) {
             const identity = JSON.stringify({

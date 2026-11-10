@@ -5,17 +5,32 @@ import {
 } from 'meteor/nachocodoner:reactive-publish';
 import { ComputedField } from 'meteor/nachocodoner:reactive-publish/lib/ReactiveAsync/ComputedField';
 import { DataLookup } from 'meteor/nachocodoner:reactive-publish/lib/ReactiveAsync/DataLookup';
-import { posts, users, comments, authors, options } from './collections.js';
+import {
+  posts,
+  users,
+  comments,
+  authors,
+  options,
+  personalizedSelector,
+} from './collections.js';
 
 export { AsyncTracker, ReactiveVarAsync, ComputedField, DataLookup };
 const external = new ReactiveVarAsync(0);
 export const setExternal = (value) => external.set(value);
 
 export function register(config, authorize) {
-  Meteor.publish('bench', function (token) {
+  Meteor.publish('bench', function (token, clientIndex) {
     authorize(token);
     const pub = this;
     const scenario = config.scenario;
+    if (scenario === 'personalized-selectors') {
+      const selector = personalizedSelector(
+        clientIndex,
+        config.profile.clients
+      );
+      pub.autorun(() => posts.find(selector, options('bench_posts')));
+      return;
+    }
     if (
       [
         'plain-cursor',

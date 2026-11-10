@@ -93,8 +93,20 @@ export async function buildApp({
   expectedRuntime,
   log,
   rebuild = false,
+  lifecycle = false,
 }) {
   const runtime = await resolveMeteorRuntime({ meteor, meteorCli });
+  const release = /^(\d+)\.(\d+)/.exec(runtime.meteor);
+  if (
+    lifecycle &&
+    !runtime.checkout &&
+    (!release ||
+      Number(release[1]) < 3 ||
+      (Number(release[1]) === 3 && Number(release[2]) < 6))
+  )
+    throw new Error(
+      '--lifecycle requires Meteor 3.6 or newer; pass --meteor 3.6'
+    );
   if (
     expectedRuntime &&
     JSON.stringify(runtime.identity) !== JSON.stringify(expectedRuntime)
@@ -116,6 +128,7 @@ export async function buildApp({
   }
   const key = hash({
     adapter,
+    lifecycle,
     package: ['reactive', 'installed'].includes(adapter) ? info.hash : null,
     inputs,
     runtimeLock,
@@ -134,8 +147,18 @@ export async function buildApp({
   const complete = path.join(cache, 'complete.json');
   if (!rebuild) {
     try {
+      const cached = JSON.parse(await fs.readFile(complete, 'utf8'));
+      // Older builds could capture the previous release's dev bundle on a cold
+      // install. Validate those executables before reusing their production app.
+      if (!cached.runtimePrepared) {
+        const selectedNode = await runtimeNode(runtime, cached.app, log);
+        if (
+          (await fs.realpath(cached.node)) !== (await fs.realpath(selectedNode))
+        )
+          throw new Error('Cached app uses a different Meteor dev bundle');
+      }
       return {
-        ...JSON.parse(await fs.readFile(complete, 'utf8')),
+        ...cached,
         source: info,
         harness,
       };
@@ -172,6 +195,7 @@ export async function buildApp({
       'ddp-client',
       'standard-minifier-js',
     ];
+    if (lifecycle) basePackages.push('instrumentation@=0.0.1');
     if (['reactive', 'installed'].includes(adapter)) {
       basePackages.push('nachocodoner:reactive-publish');
       const destination = path.join(app, 'packages/reactive-publish');
@@ -199,7 +223,7 @@ export async function buildApp({
       benchRoot,
       'variants',
       adapter,
-      `${runtime.lockName}.versions`
+      `${runtime.lockName}${lifecycle ? '.lifecycle' : ''}.versions`
     );
     try {
       await fs.copyFile(versionsLock, path.join(app, '.meteor/versions'));
@@ -254,6 +278,8 @@ export async function buildApp({
       versions,
       meteor: runtime.meteor,
       runtime,
+      runtimePrepared: true,
+      lifecycle,
     };
     await fs.writeFile(complete, JSON.stringify(result));
     return { ...result, source: info, harness };
@@ -268,7 +294,7 @@ export async function lockVersions(build, adapter) {
     benchRoot,
     'variants',
     adapter,
-    `${build.runtime?.lockName || build.meteor}.versions`
+    `${build.runtime?.lockName || build.meteor}${build.lifecycle ? '.lifecycle' : ''}.versions`
   );
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, build.versions);

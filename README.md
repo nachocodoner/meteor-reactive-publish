@@ -274,6 +274,32 @@ This package extends Meteor's core types to add reactive publishing capabilities
 - The `Meteor.publishReactive` function
 - `AsyncTracker` and `ReactiveVarAsync` with full generic type support
 
+## Development
+
+Use Node 22.12 or newer and install Meteor. From this repository:
+
+```sh
+npm ci
+npm run lint
+npm run test:ci
+npm run bench:setup
+npm run bench:test
+npm run bench -- doctor
+npm run bench:smoke
+```
+
+`test:ci` tests this checkout explicitly and defaults to the release in
+`bench/config/runtime-lock.json`. Use `npm run test:ci -- --release 3.5.2`
+to test another release. It uses Puppeteer's downloaded Chrome or an installed
+Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executable.
+If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
+avoids downloading additional browsers. Package CI checks a clean lockfile install
+and lint as well as client/server tests. The separate Meteor-core workflow remains
+disabled; its checkout-modifying shell runner needs a portability and cleanup review.
+
+See the [benchmark guide](./bench/README.md) for isolated databases, paired
+comparisons, calibration, profiling, and interpretation of measurements.
+
 ## Roadmap
 
 - **Stability** ✅

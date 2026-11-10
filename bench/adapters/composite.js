@@ -1,10 +1,24 @@
 import { publishComposite } from 'meteor/reywood:publish-composite';
-import { posts, users, comments, authors, options } from './collections.js';
+import {
+  posts,
+  users,
+  comments,
+  authors,
+  options,
+  personalizedSelector,
+} from './collections.js';
 
 export function register(config, authorize) {
-  publishComposite('bench', function (token) {
+  publishComposite('bench', function (token, clientIndex) {
     authorize(token);
     const scenario = config.scenario;
+    if (scenario === 'personalized-selectors') {
+      const selector = personalizedSelector(
+        clientIndex,
+        config.profile.clients
+      );
+      return { find: () => posts.find(selector, options('bench_posts')) };
+    }
     if (['dependent-posts', 'projection-sensitivity'].includes(scenario))
       return {
         find: () => users.find({ active: true }, options('bench_users')),

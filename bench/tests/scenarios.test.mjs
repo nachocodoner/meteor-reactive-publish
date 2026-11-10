@@ -41,6 +41,38 @@ test('dependent oracle excludes unreferenced documents and hidden fields', () =>
   );
 });
 
+test('personalized selectors retain separate client oracles and shared field clearing', () => {
+  const model = fixture(resolveProfile('standard'));
+  const state = (clientIndex) =>
+    expectedState('personalized-selectors', model, { clientIndex });
+  const initial = [0, 1, 2].map(state);
+  assert.notDeepEqual(initial[0], initial[1]);
+  assert.notDeepEqual(initial[1], initial[2]);
+  assert.deepEqual(initial[0], state(3));
+  for (let index = 0; index < 12; index++) {
+    const before = [0, 1, 2].map(state);
+    applyOperation(model, operationFor('personalized-selectors', index, model));
+    for (let clientIndex = 0; clientIndex < 3; clientIndex++) {
+      const after = state(clientIndex);
+      assert.notDeepEqual(
+        after,
+        before[clientIndex],
+        'Every addressed client must change'
+      );
+      const shared = after.bench_posts.find((post) => post._id === 'post-0');
+      assert.equal(shared.revision, index + 1);
+      assert.equal(Object.hasOwn(shared, 'optional'), !!(index % 2));
+      assert.ok(
+        after.bench_posts.every(
+          (post) =>
+            post._id === 'post-0' || post.authorId === `author-${clientIndex}`
+        )
+      );
+      assert.ok(after.bench_posts.every((post) => !('noise' in post)));
+    }
+  }
+});
+
 test('shared children remain while referenced and aggregates react to grouping-field updates', () => {
   const model = fixture(resolveProfile('smoke'));
   const before = expectedData('derived-aggregate', model);

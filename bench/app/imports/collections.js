@@ -11,3 +11,15 @@ export const users = collections.bench_users;
 export const comments = collections.bench_comments;
 export const authors = collections.bench_authors;
 export const options = (name) => ({ fields: fields(name) });
+
+export function personalizedSelector(clientIndex, clients) {
+  if (
+    !Number.isSafeInteger(clientIndex) ||
+    clientIndex < 0 ||
+    clientIndex >= clients
+  )
+    throw new Error('Invalid benchmark client index');
+  return {
+    $or: [{ _id: 'post-0' }, { authorId: `author-${clientIndex % 3}` }],
+  };
+}

@@ -160,3 +160,33 @@ test('checkout app uses none and rejects a Node executable from another runtime'
   });
   await assert.rejects(runtimeNode(runtime, app), /outside its checkout/);
 });
+
+test('a cold release is prepared before resolving its Node executable', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bench cold runtime '));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const cli = path.join(root, 'meteor');
+  await fs.writeFile(
+    cli,
+    `#!/bin/sh
+if [ "$1" = --release ] && [ "$2" = 3.3.2 ] && [ "$3" = --version ]; then
+  test "$(cat .meteor/release)" = METEOR@3.3.2 || exit 1
+  touch .meteor/prepared
+  printf '%s\\n' 'Meteor 3.3.2'
+elif [ "$1" = node ]; then
+  if test -f .meteor/prepared; then
+    printf '%s\\n' '/selected-runtime/bin/node'
+  else
+    printf '%s\\n' '/old-runtime/bin/node'
+  fi
+else
+  exit 1
+fi
+`,
+    { mode: 0o755 }
+  );
+  const runtime = { ...(await resolveMeteorRuntime({ meteor: '3.3.2' })), cli };
+  await writeRuntimeRelease(root, runtime);
+  assert.equal(await runtimeNode(runtime, root), '/selected-runtime/bin/node');
+  await fs.writeFile(cli, '#!/bin/sh\nexit 23\n', { mode: 0o755 });
+  await assert.rejects(runtimeNode(runtime, root), /exited 23/);
+});

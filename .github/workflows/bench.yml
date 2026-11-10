@@ -6,6 +6,8 @@ on:
       - 'lib/**'
       - 'main.js'
       - 'package.js'
+      - 'package.json'
+      - 'package-lock.json'
       - 'bench/**'
       - '.github/workflows/bench.yml'
   push:
@@ -77,7 +79,7 @@ jobs:
         run: npm run bench:libraries -- --suite smoke --pairs 1 --output bench/results/libraries
       - name: Reactive publication regression checks
         run: |
-          for scenario in plain-cursor dependent-posts one-to-many deep-join fanout multiple-autoruns infinite-scroll async-pressure; do
+          for scenario in plain-cursor personalized-selectors dependent-posts one-to-many deep-join fanout multiple-autoruns infinite-scroll async-pressure; do
             npm run bench -- run --adapter reactive --scenario "$scenario" --output "bench/results/regressions/$scenario.json"
           done
       - name: Full scenario report
@@ -90,7 +92,7 @@ jobs:
         env:
           BENCH_SCENARIO: ${{ inputs.scenario || 'sorted-window' }}
           BENCH_PAIRS: ${{ inputs.pairs || '5' }}
-        run: npm run bench -- paired --base HEAD --scenario "$BENCH_SCENARIO" --pairs "$BENCH_PAIRS" --output bench/results/calibration
+        run: npm run bench -- paired --base HEAD --scenario "$BENCH_SCENARIO" --profile standard --warmup 100 --operations 1000 --pairs "$BENCH_PAIRS" --output bench/results/calibration
       - name: PR baseline comparison
         if: github.event_name == 'pull_request'
         env:
@@ -105,6 +107,41 @@ jobs:
         with:
           name: publication-benchmark-results
           path: bench/results/
+          retention-days: 30
+
+  lifecycle:
+    needs: harness
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.meteor
+          key: bench-lifecycle-meteor-3.6-${{ runner.os }}-${{ hashFiles('bench/variants/**/*.versions') }}
+      - uses: meteorengineer/setup-meteor@v2
+        with:
+          meteor-release: '3.6'
+      - run: npm ci --prefix bench
+      - name: Native lifecycle control
+        run: npm run bench -- run --meteor 3.6 --lifecycle --adapter native --scenario sorted-window --profile standard --warmup 100 --operations 1000 --output bench/results/lifecycle/native.json
+      - name: Repeated equivalent library diagnostics
+        run: npm run bench:libraries -- --meteor 3.6 --lifecycle --scenario sorted-window --profile standard --warmup 100 --operations 1000 --pairs 5 --output bench/results/lifecycle/libraries
+      - name: Subscribe and stop coverage
+        run: npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-churn --operations 20 --output bench/results/lifecycle/churn.json
+      - name: Lifecycle summary
+        if: always()
+        run: |
+          find bench/results/lifecycle -name '*.md' -type f -exec cat {} \; >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: meteor-lifecycle-diagnostics
+          path: bench/results/lifecycle/
           retention-days: 30
 
   comprehensive:

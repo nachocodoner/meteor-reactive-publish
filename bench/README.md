@@ -1,5 +1,38 @@
 # Reactive publish benchmarks
 
+## Optional Meteor 3.6 lifecycle diagnostics
+
+Meteor's released `instrumentation@0.0.1` package is usable now. The [instrumentation dashboard example](https://github.com/meteor/examples/pull/53) demonstrates consuming its events in an application; this harness uses an in-memory consumer so storage and dashboard rendering do not enter the measured workload. The production library does not depend on this package. The default benchmark runtime remains Meteor 3.3.2.
+
+```sh
+# Native control: the library is absent.
+npm run bench -- run --meteor 3.6 --lifecycle --adapter native \
+  --scenario sorted-window --profile standard --warmup 100 --operations 1000 \
+  --output bench/results/lifecycle/native.json
+
+# Repeated, equivalent composite/reactive workloads; order alternates each pair.
+npm run bench:libraries -- --meteor 3.6 --lifecycle --scenario sorted-window \
+  --profile standard --warmup 100 --operations 1000 --pairs 5 \
+  --output bench/results/lifecycle/libraries
+
+# Explicit subscribe/ready/stop coverage.
+npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-churn \
+  --operations 20 --output bench/results/lifecycle/churn.json
+
+# Revision comparison, after committing a known baseline.
+npm run bench -- paired --meteor 3.6 --lifecycle --base <baseline-commit> \
+  --scenario sorted-window --profile standard --warmup 100 --operations 1000 \
+  --pairs 5 --output bench/results/lifecycle/revision
+```
+
+Run JSON and Markdown include per-method starts, completions, errors, durations, publication readiness/stops and active DDP connections. Full-suite HTML also shows lifecycle diagnostics per run. Revision and library comparisons include server method p95 and initial publication readiness p95 alongside existing client latency, CPU, heap and observer costs. The weekly/manual `lifecycle` CI job records native, repeated library, and churn results as artifacts; correctness and missing event coverage fail the job. Hosted-runner timing remains advisory. These focused checks do not establish full Meteor 3.6 package compatibility; the existing compatibility failures still block a release claim.
+
+The consumer keeps at most 10,000 timings per series and 10,000 live IDs per category. Counts, errors, mean and maximum cover all observed events, including errors after the timing cap. Once samples are capped, percentiles become unavailable rather than describing only the earliest requests. p95 requires 20 observations and p99 requires 1,000. Warmup timings are reset; live identities survive resets so stops can be matched to earlier subscriptions. Overflow, listener errors, invalid durations, missing workload events or unfinished methods invalidate the run. A successful and deliberately failing method probe verifies the API before measurement; its expected error is excluded from the measured workload.
+
+Interpret the latency layers separately: Meteor's millisecond wall-clock method duration starts at dispatch, excludes earlier queue waiting, and ends before sending the method result. The client `method_roundtrip_ms` measures receipt of that result. The workload waits for both `result` and DDP `updated` before completing a call, so neither method metric alone establishes throughput or the final acknowledgment latency. Publication readiness describes initial setup; publication stop describes a lifecycle event, not completion of cleanup. Existing exact document checks and observer/computation cleanup checks still apply. These events do not time internal Mongo queries, individual reruns, or DDP delivery; use the existing profiler and observer counters for those questions. Do not subtract independent percentiles to estimate queue time.
+
+Listeners run synchronously, so collection has a cost. Calibrate with repeated runs on the same Meteor 3.6 runtime, source, fixture and workload, alternating `--lifecycle` on and off. Treat this as a separate overhead experiment; the normal comparison command deliberately rejects mixed instrumentation settings. Comparing 3.3.2 without the package against 3.6 with it would confound runtime changes with collector overhead. Keep both sides enabled for subsequent library/revision comparisons, and repeat A/A calibration before enabling a timing gate. No arguments, results, addresses, user IDs or raw event payloads are retained by this collector.
+
 This suite measures real Meteor publications over DDP without rendering a UI. It builds separate production apps for each library, starts a private Mongo replica set, validates client data, and writes JSON and Markdown reports. It also provides backend primitive measurements and an optional check of the actual Meteor browser client.
 
 Some workloads currently expose publication correctness failures. Such runs exit nonzero and are excluded from performance comparisons. See [FINDINGS.md](./FINDINGS.md) for reproduction commands and the distinction between tested smoke coverage and the extended matrix.
@@ -26,7 +59,7 @@ All commands below run from the repository root. `reactive` uses the local libra
 | Check that reactive-publish works                       | `npm run bench:smoke`                                                  | One small DDP scenario; individual JSON/Markdown results                                   |
 | Measure a reactive-publish feature independently        | `npm run bench -- run --adapter reactive --scenario multiple-autoruns` | One selected scenario, including correctness and server resource measurements              |
 | Measure backend primitives without DDP roundtrip timing | `npm run bench -- backend --profile standard`                          | Reactive-only AsyncTracker, reactive variables, cursor, and derived-value measurements     |
-| Compare reactive-publish with publish-composite         | `npm run bench:libraries -- --suite compatible`                        | Nine equivalent cases; `comparison.md`/`comparison.json` and raw runs                      |
+| Compare reactive-publish with publish-composite         | `npm run bench:libraries -- --suite compatible`                        | Ten equivalent cases; `comparison.md`/`comparison.json` and raw runs                      |
 | Compare runtime costs, load, retention, and Mongo work  | `npm run bench:comprehensive`                                          | Repeated two-library experiments; `report.html`, `report.md`, and `report.json`            |
 | Run the focused experiment batch                        | `npm run bench:experiments -- --meteor 3.5.2`                           | Four shared cases, seven reactive-only cases, backend primitives, and a combined report   |
 | Validate every implemented scenario and adapter         | `npm run bench:all`                                                    | Shared and package-specific scenarios plus backend checks; consolidated HTML/Markdown/JSON |
@@ -85,12 +118,12 @@ The default `full` preset uses **five independent pairs, 100 warmup operations, 
 
 | Stage       | Same experiment for both libraries                                                                                  | Full preset                                                                 |
 | ----------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `core`      | All nine equivalent publication contracts, normal GC, profiling disabled                                            | 1,000 operations per run                                                    |
+| `core`      | All ten equivalent publication contracts, normal GC, profiling disabled                                            | 1,000 operations per run                                                    |
 | `load`      | Fanout at independently scheduled write rates; latency includes scheduling delay                                    | 10, 50, 100 writes/s; at least 30 seconds **and** 1,000 writes per rate/run |
 | `retention` | Stable fixture, repeated subscribe/unsubscribe, cleanup checks and forced GC with no active benchmark subscriptions | 1,000 cycles; checkpoint every 100 cycles plus baseline/final               |
-| `queries`   | All nine common contracts with Mongo profiling enabled in a fresh process/database                                  | 100 operations per run; query and document/index work                       |
+| `queries`   | All ten common contracts with Mongo profiling enabled in a fresh process/database                                  | 100 operations per run; query and document/index work                       |
 
-The complete default plan has up to **220 app runs** and about **27 minutes of scheduled load alone**, plus builds, warmup, core, retention, query stages, and drains. It is intentionally a longer experiment. `--dry-run` prints the resolved plan. Select stages with `--stages core,load`; `--scenario` filters core/query cases and includes load or retention only when the selected scenario supports it. Override fixture size and operations using the existing profile options. `--retention-cycles`, `--retention-every`, and `--latency-budget` (scheduled-delivery p95 in ms, default 100) adjust the other experiments. Query diagnostics cap operations at 100 in `full`, 20 in `quick`.
+The complete default plan has up to **240 app runs** and about **27 minutes of scheduled load alone**, plus builds, warmup, core, retention, query stages, and drains. It is intentionally a longer experiment. `--dry-run` prints the resolved plan. Select stages with `--stages core,load`; `--scenario` filters core/query cases and includes load or retention only when the selected scenario supports it. Override fixture size and operations using the existing profile options. `--retention-cycles`, `--retention-every`, and `--latency-budget` (scheduled-delivery p95 in ms, default 100) adjust the other experiments. Query diagnostics cap operations at 100 in `full`, 20 in `quick`.
 
 Each case runs the same resolved settings on isolated composite/reactive builds, reversing order between pairs. Both sides of a failed pair are retained; subsequent pairs of that case are skipped and its comparison is blocked. Other cases continue. Package-specific APIs are excluded from this mode and remain in `bench:all`. Source, dependencies, and harness identity must remain constant throughout the comprehensive run. The comparison rejects different profiling, forced-GC, fixture, rate, sample, runtime, or instrumentation settings.
 
@@ -115,7 +148,7 @@ npm run bench:all -- --profile standard --pairs 5 --output bench/results/full-st
 npm run bench:all -- --browser --executable /usr/bin/google-chrome --output bench/results/full-browser
 ```
 
-`bench:all` discovers every declared supported scenario/adapter combination: currently 16 DDP scenarios, 33 DDP variants, and one backend suite. Browser validation is explicitly shown as skipped unless `--browser` is supplied. The default is the small `smoke` profile with one repetition per variant; `--pairs 5` gives repeated comparisons. One profile and seed apply to the entire invocation. `--rate` applies only to fanout; it is zero (completion-paced writes) by default.
+`bench:all` discovers every declared supported scenario/adapter combination: currently 17 DDP scenarios, 37 DDP variants, and one backend suite. Browser validation is explicitly shown as skipped unless `--browser` is supplied. The default is the small `smoke` profile with one repetition per variant; `--pairs 5` gives repeated comparisons. One profile and seed apply to the entire invocation. `--rate` applies only to fanout; it is zero (completion-paced writes) by default.
 
 The command owns preparation, sequential app execution, cleanup, and reporting without prompting. It continues after individual failures, retains their evidence, and stops further repetitions of a failed variant while the other variants finish. It automatically compares composite versus reactive and, where supported, native versus installed/reactive/composite. Comparisons involving invalid or incomplete variants are blocked; package-specific cases still receive their own measurements. This command compares libraries on the selected source; use `paired --base` separately for revision regressions.
 
@@ -163,18 +196,18 @@ Scenarios cover plain cursors, dependent posts, one-to-many and deep joins, shar
 
 Profiles provide repeatable fixture and load sizes. Override `--clients`, `--parents`, `--children`, `--operations`, `--warmup`, `--timeout` in milliseconds, and `--observation` in milliseconds. `--seed` controls fixture generation. Warmup operations are excluded from samples, but their deterministic final dataset becomes the initial measured dataset. Subscription data resets when warmup subscriptions are replaced.
 
-The current workload topology uses one server and clients with shared selectors. Personalization/overlapping-selector profiles, multi-server runs, and reconnect stress remain extensions. The current `async-pressure` scenario serializes mutations with a controlled awaited computation; it does not claim to measure burst coalescing.
+The current workload topology uses one server. Most cases share selectors; `personalized-selectors` uses three overlapping author groups selected by client index, each with its own exact data oracle. Writes update the shared post (including field clearing), so every client is an addressed recipient. This measures selector diversity with common-document traffic; targeted private writes, multi-server runs, and reconnect stress remain extensions. The current `async-pressure` scenario serializes mutations with a controlled awaited computation; it does not claim to measure burst coalescing.
 
 **Compare the same workload across libraries or revisions.**
 
-The prepared reactive-publish/publish-composite comparison alternates isolated apps, validates both sides, and produces a combined report. The `compatible` suite covers all nine shared cases and preserves blocked cases. See [COMPARISONS.md](./COMPARISONS.md) for the Meteor 3.x-compatible release pin, exact common semantics, and exclusions.
+The prepared reactive-publish/publish-composite comparison alternates isolated apps, validates both sides, and produces a combined report. The `compatible` suite covers all ten shared cases and preserves blocked cases. See [COMPARISONS.md](./COMPARISONS.md) for the Meteor 3.x-compatible release pin, exact common semantics, and exclusions.
 
 ```sh
 # Quick two-library validation; descriptive numbers, not a supported winner.
 npm run bench:libraries -- --suite smoke --pairs 1 \
   --output bench/results/libraries-smoke
 
-# All nine equivalent cases with substantial samples and independent pairs.
+# All ten equivalent cases with substantial samples and independent pairs.
 npm run bench:libraries -- --suite compatible --profile standard \
   --warmup 100 --operations 1000 --pairs 5 \
   --output bench/results/libraries-compatible
@@ -291,7 +324,7 @@ for release in 3.3.2 "$BENCH_METEOR"; do
 done
 ```
 
-The focused experiment above uses 100 warmup and 1,000 measured operations per run, with 25 clients. Remove `--scenario sorted-window` to exercise all nine shared contracts. Remove both `--scenario sorted-window` and `--stages core` for the full experiment including load, retention, and Mongo diagnostics. For a reactive-only release check, add `--meteor "$BENCH_METEOR"` to an independent `run` or `backend` recipe above. Run experiments sequentially on the same idle machine and keep the package source, harness, competitor pin, fixtures, seed, and instrumentation fixed.
+The focused experiment above uses 100 warmup and 1,000 measured operations per run, with 25 clients. Remove `--scenario sorted-window` to exercise all ten shared contracts. Remove both `--scenario sorted-window` and `--stages core` for the full experiment including load, retention, and Mongo diagnostics. For a reactive-only release check, add `--meteor "$BENCH_METEOR"` to an independent `run` or `backend` recipe above. Run experiments sequentially on the same idle machine and keep the package source, harness, competitor pin, fixtures, seed, and instrumentation fixed.
 
 Ordinary `compare` deliberately rejects different Meteor runtimes, checkout contents, Node, Mongo, or shared Meteor package versions. There is **no automated cross-runtime comparison mode** yet: inspect the separate reports as a runtime-upgrade study instead of bypassing compatibility checks or calling the difference a reactive-publish regression. A release change may include core package, Node, or Mongo changes, so it does not isolate a particular core patch.
 

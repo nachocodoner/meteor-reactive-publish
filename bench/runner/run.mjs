@@ -86,6 +86,7 @@ export async function runBenchmark(options) {
       instrumentation: options.cpuProfile
         ? `cpu-profile-v1:${options.instrumentation || 'observers'}`
         : options.instrumentation || 'observers',
+      lifecycle: !!options.lifecycle,
     },
     metadata: { createdAt: new Date().toISOString() },
     metrics: {},
@@ -167,6 +168,7 @@ export async function runBenchmark(options) {
           sourceHash: build.source.hash,
           instrumentation: options.instrumentation,
           retention: options.retention,
+          lifecycle: !!options.lifecycle,
         }),
         METEOR_SETTINGS: '{}',
         DDP_TRANSPORT: 'sockjs',
@@ -204,6 +206,17 @@ export async function runBenchmark(options) {
     if (status.metadata.sourceHash !== build.source.hash)
       throw new Error('Loaded source hash mismatch');
     result.metadata.node = status.metadata.node;
+    if (status.metadata.lifecycle !== !!options.lifecycle)
+      throw new Error('Runtime lifecycle instrumentation mismatch');
+    if (options.lifecycle) {
+      result.phases.lifecycleProbe = await control('lifecycle-probe');
+      const probe =
+        result.phases.lifecycleProbe.methods?.['bench.lifecycleProbe'];
+      if (probe?.started !== 2 || probe.succeeded !== 1 || probe.failed !== 1)
+        throw new Error(
+          'Meteor instrumentation did not emit the required method events'
+        );
+    }
     if (options.level) {
       const baseline = (await control('status')).resources;
       await control('start');
@@ -262,17 +275,31 @@ export async function runBenchmark(options) {
     let subscriptions = [];
     let operationIndex = 0;
     let expected;
+    let expectedByClient;
     let expectedSubscriptionData;
+    const clientContext = (index) =>
+      scenario === 'personalized-selectors'
+        ? { ...context, clientIndex: index }
+        : context;
     const refreshExpected = () => {
       expected = prepareState(
         expectedState(scenario, model, context),
         collectionNames
       );
       expectedSubscriptionData = expectedData(scenario, model, context);
+      expectedByClient =
+        scenario === 'personalized-selectors'
+          ? clients.map((_, index) =>
+              prepareState(
+                expectedState(scenario, model, clientContext(index)),
+                collectionNames
+              )
+            )
+          : null;
     };
     refreshExpected();
     const stateMatches = (client, index) =>
-      client.store.matches(expected) &&
+      client.store.matches(expectedByClient?.[index] || expected) &&
       (expectedSubscriptionData === null ||
         EJSON.equals(
           client.store.data(subscriptions[index]?.id),
@@ -284,14 +311,17 @@ export async function runBenchmark(options) {
         if (client.failure) throw client.failure;
         if (!stateMatches(client, index))
           throw new Error(
-            `Client ${index} state mismatch: ${JSON.stringify({ expected: expectedState(scenario, model, context), actual: client.store.snapshot(collectionNames), expectedData: expectedData(scenario, model, context), actualData: client.store.data(subscriptions[index]?.id) }).slice(0, 3000)}`
+            `Client ${index} state mismatch: ${JSON.stringify({ expected: expectedState(scenario, model, clientContext(index)), actual: client.store.snapshot(collectionNames), expectedData: expectedData(scenario, model, context), actualData: client.store.data(subscriptions[index]?.id) }).slice(0, 3000)}`
           );
       });
     };
     const subscribe = async (measured) => {
       subscriptions = [];
-      for (const client of clients) {
-        const sub = await client.subscribe('bench', [token]);
+      for (const [index, client] of clients.entries()) {
+        const sub = await client.subscribe(
+          'bench',
+          scenario === 'personalized-selectors' ? [token, index] : [token]
+        );
         subscriptions.push(sub);
         if (measured) result.samples.ready.push(sub.readyMs);
       }
@@ -517,6 +547,11 @@ export async function runBenchmark(options) {
         0
       ),
     });
+    if (options.lifecycle) {
+      result.metrics.meteor_method_ms = server.lifecycle.methodDuration;
+      result.metrics.meteor_initial_ready_ms =
+        result.phases.initial.server.lifecycle.publication.readiness;
+    }
     result.metrics.cpu_ms_per_operation =
       result.metrics.app_cpu_ms / profile.operations;
     result.metrics.bytes_per_operation =

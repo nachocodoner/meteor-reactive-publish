@@ -7,6 +7,11 @@ export const scenarios = {
     adapters: all,
     description: 'Projected cursor CRUD and field clearing',
   },
+  'personalized-selectors': {
+    adapters: all,
+    description:
+      'Per-client author queries overlap on a shared document that changes',
+  },
   'dependent-posts': {
     adapters: joins,
     description: 'A reader changes the IDs of subscribed posts',
@@ -92,6 +97,16 @@ export function expectedState(name, model, context = {}) {
   };
   const active = model.bench_posts.filter((doc) => doc.active);
   if (isDataScenario(name)) return result;
+  if (name === 'personalized-selectors') {
+    const authorId = `author-${(context.clientIndex || 0) % 3}`;
+    add(
+      'bench_posts',
+      model.bench_posts.filter(
+        (doc) => doc._id === 'post-0' || doc.authorId === authorId
+      )
+    );
+    return result;
+  }
   if (
     ['dependent-posts', 'projection-sensitivity', 'async-pressure'].includes(
       name
@@ -166,6 +181,21 @@ export function operationFor(name, index, model) {
     set,
     unset,
   });
+  if (name === 'personalized-selectors') {
+    // Every subscriber sees this mutation; private documents differ by author.
+    // This isolates selector sharing without treating unaddressed clients as
+    // missing delivery samples or weakening the exact per-client oracle.
+    return update(
+      'bench_posts',
+      'post-0',
+      {
+        title: `Shared ${revision}`,
+        revision,
+        ...(index % 2 ? { optional: `present-${revision}` } : {}),
+      },
+      index % 2 ? [] : ['optional']
+    );
+  }
   const post = model.bench_posts[0];
   if (name === 'fanout')
     return {

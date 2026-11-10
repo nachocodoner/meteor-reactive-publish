@@ -1,9 +1,14 @@
 import { Meteor } from 'meteor/meteor';
-import { posts, options } from './collections.js';
+import { posts, options, personalizedSelector } from './collections.js';
 
 export function register(config, authorize) {
-  Meteor.publish('bench', function (token) {
+  Meteor.publish('bench', function (token, clientIndex) {
     authorize(token);
+    if (config.scenario === 'personalized-selectors')
+      return posts.find(
+        personalizedSelector(clientIndex, config.profile.clients),
+        options('bench_posts')
+      );
     if (config.scenario === 'sorted-window')
       return posts.find(
         {},

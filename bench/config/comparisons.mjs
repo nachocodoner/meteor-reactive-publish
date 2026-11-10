@@ -5,6 +5,8 @@ export const libraryAdapters = ['composite', 'reactive'];
 // The contract concerns observable data, not the number/shape of Mongo queries.
 // Adapters may use their idiomatic consolidated-cursor or per-parent tree APIs.
 export const libraryContracts = {
+  'personalized-selectors':
+    'Each client sees its author-specific posts plus post-0; shared updates and field clearing reach every client without exposing another author group.',
   'plain-cursor':
     'Identical projected active posts through insert, update, field clearing, removal, and membership changes.',
   'dependent-posts':

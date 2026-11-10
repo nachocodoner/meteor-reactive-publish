@@ -165,6 +165,15 @@ export async function writeRuntimeRelease(app, runtime) {
 }
 
 export async function runtimeNode(runtime, app, log) {
+  if (!runtime.checkout) {
+    // `meteor node` takes a fast path which can use the previous dev bundle
+    // before a newly selected release has been downloaded/prepared.
+    await command(runtime.cli, ['--release', runtime.meteor, '--version'], {
+      cwd: app,
+      log,
+      timeout: 1200000,
+    });
+  }
   const node = (
     await command(runtime.cli, ['node', '-p', 'process.execPath'], {
       cwd: app,

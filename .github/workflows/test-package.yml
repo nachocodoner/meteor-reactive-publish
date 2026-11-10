@@ -6,9 +6,36 @@ on:
       - master
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: package-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
 
     name: meteor-reactive-publish package tests
 
@@ -20,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.meteor
-          key: meteor-cache
+          key: package-meteor-3.3.2-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Setup Meteor
         uses: meteorengineer/setup-meteor@v2
@@ -30,5 +57,5 @@ jobs:
       - name: Install and Test Local Package
         working-directory: .
         run: |
-          meteor npm install
+          meteor npm ci
           meteor npm run test:ci

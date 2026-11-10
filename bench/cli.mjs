@@ -66,6 +66,7 @@ const { values, positionals } = parseArgs({
     rebuild: { type: 'boolean' },
     gate: { type: 'boolean' },
     browser: { type: 'boolean' },
+    lifecycle: { type: 'boolean' },
     'dry-run': { type: 'boolean' },
   },
   allowPositionals: true,
@@ -117,6 +118,7 @@ function runOptions({ allowFanoutRate = false } = {}) {
     rate,
     executable: values.executable,
     instrumentation: values.instrumentation || 'observers',
+    lifecycle: !!values.lifecycle,
   };
 }
 
@@ -142,6 +144,7 @@ async function main() {
   npm run bench -- paired --base HEAD --pairs 5 --scenario dependent-posts
   npm run bench -- compare --baseline base.json --target target.json
   npm run bench -- profile --scenario dependent-posts
+  npm run bench -- run --meteor 3.6 --lifecycle --scenario sorted-window --profile standard
   npm run bench -- backend --profile smoke
   npm run bench -- browser --executable /usr/bin/google-chrome
   npm run bench -- lock --adapter composite
@@ -154,7 +157,8 @@ Use --source for another reactive-publish checkout. --meteor selects a released 
 Use --meteor-cli /path/to/meteor/meteor for a Meteor Git checkout, including worktrees and local changes.
 --meteor and --meteor-cli are mutually exclusive; every execution mode supports either choice.
 Comparisons are advisory; --gate explicitly enables provisional timing budgets after local calibration.
-Comprehensive defaults: five pairs, 100 warmup + 1,000 operations, all nine common cases.
+--lifecycle adds optional Meteor 3.6+ method/publication/connection diagnostics; default is off.
+Comprehensive defaults: five pairs, 100 warmup + 1,000 operations, all ten common cases.
 Stages: core, load, retention, queries. --preset quick validates setup with sparse samples.
 Load uses at least --duration seconds AND the operation minimum; --latency-budget is in ms.
 `);

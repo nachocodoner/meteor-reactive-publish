@@ -131,3 +131,101 @@ The initial focused 3.5.2 experiment used application Node 24.15.0, MongoDB 7.0.
 Plain-cursor and one-to-many each completed all ten valid runs. Deep-join recorded one valid composite run and a reactive `bench.mutate` timeout. The batch was stopped after substantial host memory/I/O pressure was observed; remaining work was deferred. The 21 valid results out of 22 recorded attempts remain preliminary. The timeout's cause is unresolved on that pressured host, and these measurements must not become a regression baseline or support a universal library ranking. Local artifacts are under ignored `bench/results/meteor-3.5.2-experiments/`.
 
 The temporary Python helpers were replaced with the repository's Node-only `bench:experiments` runner. It generates the combined HTML/Markdown/JSON/CSV reports automatically, samples host conditions, preserves interruptions and failures, and refuses existing output directories. Its reporter was checked against the saved batch: run counts, metric means/ranges/sample deviations, and comparison evidence were preserved. All 52 Node harness tests pass, including interruption, mixed-identity rejection, invalid-result reporting, and serial execution after individual failures. The README documents dry runs, fresh measurements, and report regeneration without executing workloads. Quiet-machine measurements remain deferred.
+
+**Dependency cleanup and observer reuse (2026-11-10).**
+
+The original PR head `b29755b5d610ccdb392c3de5de30d6009b5a371f` had a library bug: every dependency reread registered another persistent invalidation and stop callback. Long-lived computations retained obsolete dependency closures and repeated their cleanup on subsequent invalidations. A regression with 2,000 reruns grew the original callback arrays from 2/1 to 2,002/2,001. Two further regressions exposed dependencies being reattached after stop and late dependency reads surviving into a replacement run. All three fail against the original server implementation and pass after the fix; the final package suite also runs them in the browser.
+
+Computations now own a set of current dependencies, clear those edges at invalidation/rerun/stop, and reject reads after stop. Public invalidation callbacks keep their existing persistent behavior. Publication autoruns also retain an observer when they return the same cursor object. Changed queries retire old observers; membership is reconciled after awaited results, including events from the previous cursor while the query changes. Tests cover both observer identity across repeated writes and that asynchronous query-change race across separate connections.
+
+The measured candidate package SHA-256 is `b0ac8dc00138d9a1f9ac79705ae283bee44ceef84bd884e8e1fd9ca5ec07e69e`. Measurements ran serially on an Intel Mac with macOS 14.5, 16 logical CPUs and 32 GiB RAM, Meteor 3.3.2, application Node 22.18.0, and MongoDB 7.0.16. Harness Node was 22.14.0. Host load/memory samples and exact commands are retained in `bench/results/optimization/validation.json`. macOS does not provide the harness's Linux `/proc` Mongo process-cost metrics; these are explicitly unavailable.
+
+A/A calibration used two identical snapshots of the candidate, with five alternating pairs, 25 clients, 100 parents, 10 children per parent, 100 warmup operations and 1,000 measured operations per run. All ten runs passed correctness and cleanup. Mean CPU differed by 1.64%, with a paired delta interval spanning zero; all evaluated metrics remained within provisional budgets. This local calibration does not establish hosted-CI thresholds.
+
+The same settings then compared the original PR head with the candidate. All ten runs passed correctness and cleanup. Values below are means of per-run summaries; memory columns represent sampled peaks, not retained heap after GC.
+
+| Metric | Original PR | Candidate | Change |
+| --- | ---: | ---: | ---: |
+| Application CPU per operation | 14.353 ms | 8.423 ms | -41.3% |
+| Sampled peak heap used | 196.67 MB | 72.28 MB | -63.2% |
+| Sampled peak RSS | 302.49 MB | 171.32 MB | -43.4% |
+| GC time per operation | 0.278 ms | 0.080 ms | -71.1% |
+| Observer creations per operation | 50 | 0 | -100% |
+| Update convergence p95 | 4.542 ms | 4.969 ms | +9.4% |
+| Completed operations per second | 21.611 | 23.516 | +8.8% |
+| DDP bytes per operation | 6,098.529 | 6,098.529 | unchanged |
+
+The CPU delta interval was -6.287 to -5.522 ms/operation. Delivery p95 increased by 0.427 ms (paired interval 0.287–0.612 ms), within the provisional budget; the improvement is in resource cost and completion rate, not every latency metric. These results measure the two fixes together in one workload and do not isolate their individual contributions or establish a cross-library ranking. Raw runs and uncertainty estimates are under `bench/results/optimization/{calibration,before-after}/`.
+
+Reproduce the revision comparison from the candidate checkout:
+
+```sh
+npm run bench -- paired --base b29755b5d610ccdb392c3de5de30d6009b5a371f \
+  --scenario sorted-window --profile standard --warmup 100 --operations 1000 \
+  --pairs 5 --output bench/results/before-after-repeat
+```
+
+Validation and environment repairs:
+
+- All 137 client/server package tests and 54 Node harness tests passed. Lint passed with zero errors and 18 existing unused-variable warnings. Root clean installs passed both with strict peer resolution and this machine's `legacy-peer-deps=true` setting.
+- The full smoke suite passed all 39 requested checks: 37 DDP variants across 17 scenarios, backend primitives, and the browser check. It produced 25 available comparisons and no blocked comparisons. The earliest plain-cursor runs preceded the final awaited-query fix, so all four plain-cursor adapters were rerun successfully against the final source. Artifacts are `bench/results/optimization/full-smoke/` and `plain-final/`.
+- `personalized-selectors` adds three overlapping author groups and independent exact per-client data validation across all four adapters. Mutations affect the common post, including field clearing. Targeted private writes remain an extension.
+- The root lockfile now matches the declared dependencies, including required lint peers. Package tests explicitly select this checkout, the pinned Meteor release, and an available Chrome executable. Runtime detection prepares a cold Meteor release before resolving its Node executable; older cached bundles are validated before reuse.
+- Package CI now includes lint and a clean lockfile install. Scheduled/manual A/A uses 100 warmup operations, 1,000 measured operations and five pairs by default. Timing remains advisory. The separate Meteor-core workflow remains disabled; these workflow edits have not yet run on GitHub.
+
+The larger personalized-selector check also passed for composite and reactive with 25 clients and the standard profile. Its single pair validates this workload; its timing comparison remains inconclusive. Artifacts: `bench/results/optimization/personalized-standard/`.
+
+The offered-load follow-up completed all 1,501 inserted posts for both libraries at 50 offered writes/second over a 30-second scheduling window, with 25 clients and 100 warmup writes. Both passed exact final-state and resource-cleanup checks. The earlier recorded reactive timeout did not recur, but both exceeded the declared 100 ms scheduled-delivery p95 budget: composite 5,702 ms and reactive 5,417 ms, with roughly 42 completed operations/second including drain. Generator utilization stayed below 16% and scheduling-lag p95 was about 2 ms. This is a valid execution above the tested setup's latency target, not evidence of sustainable 50-writes/second capacity. It is one pair, and the older timeout was not a controlled same-host baseline for this experiment. Artifacts: `bench/results/optimization/load/report.html`.
+
+The load path currently uses one writer connection and ordinary Meteor methods. Investigate method queuing alongside publication work before interpreting that workload as a library capacity ceiling. The inserted dataset also grows throughout the run; its peak memory is not a fixed-dataset retention measurement. Separate writer-concurrency experiments and repeated lower-rate measurements are useful next steps.
+
+The separate fixed-fixture retention run completed 1,000 subscribe/unsubscribe cycles for both libraries, each with 25 clients after 100 warmup cycles. All 11 forced-GC checkpoints had zero active observers and computations. Reactive heap used went from 49.23 MB at baseline to 47.71 MB at the final checkpoint; composite went from 47.64 MB to 45.41 MB. Reactive's later checkpoints drifted upward from 46.68 MB at cycle 100 to 47.71 MB at cycle 1,000, so the lower final value alone does not prove a long-term plateau or absence of leaks. The one-pair comparison is descriptive; longer repeated studies remain useful. Artifacts: `bench/results/optimization/retention/report.html`.
+
+The serial validation batch finished with all seven jobs successful and unchanged candidate/harness hashes throughout. All raw artifacts described in this section are local ignored files; this document preserves the findings without promoting a timing baseline.
+
+**Meteor 3.6 release-readiness check (2026-11-10).**
+
+The successful package/performance validation above used Meteor 3.3.2. A subsequent compatibility check on the newly released Meteor 3.6, resolving `ddp-server@3.6.0` and `mongo@2.6.0`, completed with **133 passing and four failing package tests**. The candidate source hash was unchanged. The failures were the existing cursor-cache reactivity test, the recent-posts time-window test, and the two ReactiveData count tests (expected 10/20, received 9/19). A stable release should wait for this compatibility investigation.
+
+Focused runs retained the original assertions and used matching Meteor 3.6 runtimes:
+
+| Existing test | Original PR `b29755b` | Optimized candidate |
+| --- | --- | --- |
+| Cursor cache clearing | Passed | Failed again: expected two runs after update, observed one |
+| ReactiveData suite | 4 passed, 2 count failures | Same 4 passed, 2 count failures |
+| Recent-posts time window | Passed in isolation | Passed in isolation; failed in the full suite |
+
+The count failures therefore also affect the original PR on this runtime. The cursor-cache difference needs regression investigation, while the time-window result requires investigation of timing or suite interaction. These focused results do not erase the full-suite failures. The clean candidate snapshot had the exact same package hash as the working checkout and excluded development `node_modules`. Earlier diagnostic attempts hit separate setup problems: placing a test app under the ESM benchmark directory, and rebuilding the checkout's nested development Puppeteer dependency. Those attempts did not execute tests and are excluded from the table.
+
+An AST audit compared all 95 existing Tinytest registrations at the original PR head and all 88 registrations on its base with the candidate. No existing test body was changed or removed; shared client/server registrations explain why these counts differ from executed test totals. Existing Mongo test edits were formatting only. The sole changed existing harness expectation was nine to ten common scenarios after adding personalized selectors. Logs, source hashes, focused comparisons and the audit are under `bench/results/instrumentation-review/`.
+
+Release preparation also needs a new version in `package.js`, a working documented publish command (`npm run publish` currently references the missing `scripts/publish.sh`), and CI on the final committed source. Meteor 3.6 instrumentation can be an optional benchmark collector in a separate change; it is not required to repair these failures.
+
+**Optional Meteor lifecycle collector (2026-11-10).**
+
+The harness now accepts `--meteor 3.6 --lifecycle`, with separate dependency locks pinning `instrumentation@0.0.1`. It consumes the public events in memory, verifies a successful and deliberately failing method before measurement, and checks event coverage against client calls and publication lifecycles. Timing storage is bounded without truncating totals/errors; capped percentiles are explicitly unavailable. Neither the production package nor its existing test assertions changed during this addition; its content hash remains `b0ac8dc00138d9a1f9ac79705ae283bee44ceef84bd884e8e1fd9ca5ec07e69e`.
+
+Actual runs used Meteor 3.6, application Node 26.13.0, MongoDB 8.0.29, and publish-composite 1.9.0 on the same Intel Mac. These are different runtime coordinates from the earlier 3.3.2 optimization experiment and cannot be compared as a before/after speedup. The native control passed 100 measured method calls with 25 subscriptions, including complete readiness/stop coverage and zero collector faults.
+
+Five alternating composite/reactive pairs used the sorted-window contract, 25 clients, 100 parents, 10 children per parent, 100 warmup operations and 1,000 measured operations per run. All ten passed exact-state, resource cleanup and lifecycle checks, with 5,000 measured method completions per library and no measured errors. Means of per-run summaries:
+
+| Metric | Composite | Reactive |
+| --- | ---: | ---: |
+| Server method p95 | 24.4 ms | 23.0 ms |
+| Client method-result p95 | 24.843 ms | 23.505 ms |
+| Client update convergence p95 | 4.098 ms | 3.683 ms |
+| Initial server publication-ready p95 | 1 ms | 1 ms |
+| CPU per operation | 4.370 ms | 6.058 ms |
+| Completed operations per second | 41.088 | 24.593 |
+
+The CPU difference is +38.6% (paired delta interval +1.523 to +1.812 ms/operation); completed throughput is -40.1% (interval -16.632 to -16.285 operations/s). This is one workload, not a universal ranking. Raw runs, coverage snapshots, package graphs and full comparison details are in `bench/results/lifecycle/libraries/`.
+
+The timing layers expose an investigation target: method-end events and receipt of the client method result are not the final DDP `updated` acknowledgment. The workload requires both acknowledgments and validates state before issuing the next operation. Lower method p95 therefore does not guarantee higher completed throughput. Measure acknowledgment/completion timing and profile the additional work before attributing the difference to a specific library operation; do not subtract independent percentiles to estimate a queue. Publication stop also precedes asynchronous cleanup, so the existing resource checks remain necessary.
+
+The weekly/manual lifecycle CI job runs a native control, five library pairs and subscription churn, retaining reports for 30 days. Correctness and event-coverage failures block that job; performance remains advisory. This workflow is configured locally and has not yet run on GitHub. The four full-suite Meteor 3.6 compatibility failures above remain unresolved; successful benchmark coverage does not make the branch release-ready.
+
+A separate overhead diagnostic used five alternating on/off pairs of the candidate on Meteor 3.6, with 25 clients, 100 warmup operations and 300 measured operations after explicit preflights. Both package graphs differ only by `instrumentation@0.0.1`; the source, harness, runtime, hardware and fixture identities matched. All twelve executions passed. Mean CPU was 6.870 ms/operation off and 7.062 on (+2.8%); sampled peak heap increased 0.5%, method-result p95 increased 1.1%, and update-convergence p95 decreased 0.4%. CPU changes across individual pairs ranged from -2.0% to +12.4%, so these short runs do not establish a precise fixed overhead or zero cost. This experiment deliberately compares different instrumentation settings outside the normal library/revision comparator, which continues to reject that mismatch. Raw runs and its reproduction script are in `bench/results/lifecycle/overhead/`.
+
+A short offered-load diagnostic used 25 clients, 20 warmup writes and 301 measured writes scheduled at 50/s over six seconds. All writes and final states passed; server method p95 was 25 ms, client result p95 1,134.4 ms, and scheduled delivery p95 1,116.4 ms. Completion throughput including drain was 41.85 operations/s. Generator utilization was 9.0% and scheduling-lag p95 2.13 ms. This exposes substantial waiting outside the server's dispatch-to-result interval, consistent with queuing in the one-writer setup; it does not isolate every source of delay or establish sustained capacity. A dedicated complete-call/`updated` latency metric and controlled writer-concurrency experiment are useful next steps. Raw evidence: `bench/results/lifecycle/fanout.json`.
+
+Final validation passed all 60 Node harness tests and lint with zero errors (18 pre-existing unused-variable warnings). All 29 real executions passed: the native control; ten repeated library runs; twelve overhead runs including preflights; churn, subscription-data, basic observer mode, backend primitives, offered load, and the unchanged default Meteor 3.3.2 path. Churn recorded all 42 stops across initial subscriptions plus 20 cycles for two clients; subscription-data observed all 80 method calls. An additional negative check correctly rejected `--lifecycle --meteor 3.3.2` before starting an app. Workflow YAML and whitespace checks passed. The rendered focused comparison is `bench/results/lifecycle/report.html`; these artifacts are local ignored files. Existing package tests were not modified or rerun for this harness-only addition; their prior 3.3.2 pass and 3.6 failures remain the relevant release evidence.

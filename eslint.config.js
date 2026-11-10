@@ -16,6 +16,8 @@ export default [
       '**/node_modules/',
       'dist/',
       'build/',
+      'bench/results/',
+      'bench/cache/',
       'coverage/',
       '.vscode/',
       '.env',

@@ -79,6 +79,35 @@ const summaryRows = (report) =>
           .join('; ')
       : 'No equivalent cross-library comparison',
   ]);
+const lifecycleHeaders = [
+  'Run',
+  'Status',
+  'Methods completed',
+  'Method errors',
+  'Server method p95 ms',
+  'Server ready p95 ms',
+  'Publication stops',
+  'Active publications after unsubscribe',
+];
+const lifecycleRows = (entry) =>
+  Object.entries(entry.adapters).flatMap(([adapter, variant]) =>
+    variant.runs
+      .filter((run) => run.metrics?.lifecycle || run.failure?.lifecycle)
+      .map((run) => {
+        const snapshot = run.metrics?.lifecycle || run.failure?.lifecycle;
+        const methods = Object.values(snapshot.methods);
+        return [
+          `${adapter} ${run.pair + 1}`,
+          run.status,
+          methods.reduce((sum, stat) => sum + stat.succeeded, 0),
+          methods.reduce((sum, stat) => sum + stat.failed, 0),
+          format(snapshot.methodDuration.p95),
+          format(run.lifecycle?.initial?.publication?.readiness?.p95),
+          run.lifecycle?.cleanup?.publication?.stopped ?? 'n/a',
+          run.lifecycle?.cleanup?.publication?.active ?? 'n/a',
+        ];
+      })
+  );
 const description = (report) =>
   `Meteor ${report.config.meteor}; publish-composite ${report.compositeVersion}; ${report.requestedPairs} repetition(s) per variant; ${report.config.profile.clients} clients; ${report.config.profile.parents} parents; ${report.config.profile.operations} ${report.config.comprehensive ? 'core-stage ' : ''}measured operations per run; seed ${report.config.seed}.`;
 const metricNote =
@@ -229,6 +258,12 @@ export function suiteMarkdown(report) {
       continue;
     }
     parts.push(markdownTable(variantHeaders, variantRows(entry)));
+    if (lifecycleRows(entry).length)
+      parts.push(
+        'Meteor lifecycle diagnostics by run; server duration excludes pre-dispatch waiting and client delivery.',
+        '',
+        markdownTable(lifecycleHeaders, lifecycleRows(entry))
+      );
     if (failureRows(entry).length)
       parts.push(
         'Partial failed-run diagnostics; excluded from performance comparisons.',
@@ -338,6 +373,9 @@ export function suiteHtml(report) {
   const sections = report.cases
     .map((entry) => {
       const diagnostics = diagnosticRows(entry);
+      const lifecycle = lifecycleRows(entry).length
+        ? `<p>Meteor lifecycle diagnostics by run; server duration excludes pre-dispatch waiting and client delivery.</p>${htmlTable(lifecycleHeaders, lifecycleRows(entry))}`
+        : '';
       const variants = Object.entries(entry.adapters)
         .map(
           ([adapter, variant]) =>
@@ -371,7 +409,7 @@ export function suiteHtml(report) {
             }`
         )
         .join('');
-      return `<details data-case="${html(entry.id)}" data-status="${html(entry.status)}"><summary>${html(entry.id)} <span class="badge ${html(entry.status)}">${html(entry.status)}</span></summary><p>${html(entry.description)}</p><p>${html(caseSettings(entry))}</p><p>${html(generatorNote(entry))}</p>${entry.enabled ? htmlTable(variantHeaders, variantRows(entry)) + (failureRows(entry).length ? `<p>Partial failed-run diagnostics; excluded from performance comparisons.</p>${htmlTable(failureHeaders, failureRows(entry))}` : '') + retentionChart(entry) + (diagnostics.length ? htmlTable(['Diagnostic', 'Mean ms', 'p95 ms'], diagnostics) : '') + variants + comparisons : `<p>${html(entry.skipReason)}</p>`}</details>`;
+      return `<details data-case="${html(entry.id)}" data-status="${html(entry.status)}"><summary>${html(entry.id)} <span class="badge ${html(entry.status)}">${html(entry.status)}</span></summary><p>${html(entry.description)}</p><p>${html(caseSettings(entry))}</p><p>${html(generatorNote(entry))}</p>${entry.enabled ? htmlTable(variantHeaders, variantRows(entry)) + lifecycle + (failureRows(entry).length ? `<p>Partial failed-run diagnostics; excluded from performance comparisons.</p>${htmlTable(failureHeaders, failureRows(entry))}` : '') + retentionChart(entry) + (diagnostics.length ? htmlTable(['Diagnostic', 'Mean ms', 'p95 ms'], diagnostics) : '') + variants + comparisons : `<p>${html(entry.skipReason)}</p>`}</details>`;
     })
     .join('\n');
   return `<!doctype html>
