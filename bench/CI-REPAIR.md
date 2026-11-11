@@ -19,6 +19,13 @@ and cleanup is registered before invoking the publication. Existing field-level
 reactivity checks remain unchanged. A new regression covers absent metadata,
 client creation, and removal on stop across separate DDP connections.
 
+A further controlled regression found that a server data read completing after
+subscription stop could recreate that lazily initialized document. Initialization
+now refuses to start after stop, and cleanup waits for initialization already in
+progress before removing the document. The test keeps two DDP connections open,
+stops their subscriptions, and then completes the delayed reads; it fails before
+the fix and passes afterward.
+
 An initial write-only initialization attempt failed two existing field-reactivity
 checks. It is retained in the local logs, and was replaced by initialization on
 server data access to preserve that behavior.
@@ -102,10 +109,13 @@ full matrix without omissions, and reference failures cannot become valid runs.
 
 ## Validation
 
-The final package source passes all 141 package tests and all 29 required
-benchmark variants on both Meteor 3.3.2 and 3.6, including backend and browser
-checks. The local 3.6 matrix enables lifecycle instrumentation. Both hosted
-package jobs pass 141/141; the hosted 3.3.2 required matrix also passes 29/29.
+Before the late-read cleanup follow-up, `be04337` passes all 141 package tests
+and all 29 required benchmark variants on both Meteor 3.3.2 and 3.6, locally and
+on GitHub, including backend and browser checks. The local 3.6 matrix enables
+lifecycle instrumentation. Its full local core runs pass 2,645/2,645 with change
+streams and 2,551/2,551 with oplog, exactly matching their baseline inventories.
+The hosted oplog baseline and candidate also pass 2,551/2,551. These counts describe
+that checkpoint; the late-read follow-up adds one package regression.
 All 71 Node harness tests pass; lint reports zero errors and 18 existing warnings.
 The source-verified focused core read-preference run passes on server and client.
 The unchanged DDP message assertion also passes with verified local source.
