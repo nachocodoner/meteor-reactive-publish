@@ -103,16 +103,32 @@ passes did not establish that all hosted checks were green.
   identity checks remain unchanged. The repaired fixture passes on both
   pre-optimization `be74b3f` and the candidate; this does not require a production
   change or a blanket tolerance for missing updates.
+- CI at `44c86f8` passed the repaired forEach fixture but exposed the same
+  two-removal coalescing assumption in `mapAsync` (expected ten runs, observed
+  nine, with correct values). Map and fetch fixtures now settle their individual
+  writes too. Map updates largest values first to keep relative order stable for
+  exact single-notification counts, then separately asserts the exact mapped
+  order after moving the last document to the front. Fetch's manual query-option
+  reruns remain exact; their totals shift because all five inserts now settle
+  individually. All 12 Mongo-focused cases pass on pre-optimization `be74b3f`
+  and the candidate, on both Meteor releases.
 - An additional package test checks cache hits, changing sort options, cleanup,
   and reordering when the changed sort field is excluded from the projection.
   This also protects behavior that an unordered-observer shortcut could break.
 
 An AST audit against `be74b3f` finds 100 existing test registrations, no removals,
-two corrected tests and two added tests. **627 of 634 original direct assertion
-calls and values** from branch base `c99252d` remain unchanged. The seven exceptions
-are the four child-run assumptions and three explicitly settled-write counts
-explained above; they are not performance-budget changes or allowances for
-incorrect published data.
+four corrected tests and two added tests. **618 of 634 original direct assertion
+calls and values** from branch base `c99252d` remain unchanged. All 16 exceptions
+are computation-count expectations, listed below. Exact document arrays, lengths,
+identity checks and performance budgets are unchanged.
+
+| Test | Old count expectations | Corrected expectations |
+| --- | --- | --- |
+| Nested child runs | 6, 7, 9, 10 | At least those counts; independent child notifications are legitimate |
+| forEach phases | 5, 9, 11 | Exactly 6, 11, 13 with individually settled writes |
+| map phases | 5, 8, 10 | Exactly 6, 10, 12 with settled writes and order-preserving updates |
+| fetch phases | 5, 6, 7, 8, 9, 10 | Exactly 6, 7, 8, 9, 10, 11 after settling all five inserts |
+
 No core expectation is rewritten. PR benchmark checks now cover both Meteor
 3.3.2 and 3.6, including focused 3.6 instrumentation coverage. The complete
 39-check scenario/browser matrix also runs on every PR and fails the job on a
@@ -121,9 +137,9 @@ coverage gap. Repeated timing experiments remain scheduled/manual and advisory.
 
 ## Verification
 
-The final repaired package source is byte-identical to its isolated test snapshot.
-Both full package suites pass **139/139**, on Meteor 3.3.2 and 3.6, with no
-assertions after completion. All **67 Node harness tests** pass. Lint reports zero errors and
+The final iteration fixtures pass the 12-case Mongo control on both releases,
+on both pre-optimization code and the candidate. Both full package suites pass
+**139/139** after the map/fetch correction, with no assertions after completion. All **67 Node harness tests** pass. Lint reports zero errors and
 18 existing warnings. The isolated benchmark-only installation also passes all
 four core-runner orchestration tests.
 
@@ -155,7 +171,7 @@ validation processes and are not the source of the performance claim above.
 The performance, smoke and core snapshots predate later test-only corrections.
 All twelve production package files match the measured snapshot byte for byte,
 and the benchmark harness hash is unchanged. Final package hash is
-`8fa07011c8837739c011799c9c4476b07d833379e856e3076a4d12861f9f3a2c`;
+`9837dc0f1a2cb5d07da61f5d3cbaa340b7360b0ef182c316269902e523e5968d`;
 the raw identities distinguish each test snapshot.
 
 ### Hosted CI exposes external comparison failures
@@ -165,10 +181,11 @@ both package releases (139/139 each), and both smaller benchmark smoke jobs,
 including focused 3.6 instrumentation. Enabling the complete matrix on PRs at
 `5f7faa0` exposed failures that the smaller checks did not cover:
 
-| Release | Full matrix | Failing adapter/scenarios |
-| --- | --- | --- |
-| 3.3.2 | 37/39 valid | composite: dependent-posts and projection-sensitivity |
-| 3.6 | 38/39 valid | composite: projection-sensitivity |
+| Checkpoint | Release | Full matrix | Failing adapter/scenarios |
+| --- | --- | --- | --- |
+| `5f7faa0` | 3.3.2 | 37/39 valid | composite: dependent-posts and projection-sensitivity |
+| `5f7faa0` | 3.6 | 38/39 valid | composite: projection-sensitivity |
+| `44c86f8` | Both | 37/39 valid each | composite: dependent-posts and projection-sensitivity |
 
 All reactive-publish variants and both browser checks passed. Each failed app's
 resolved graph contains `reywood:publish-composite@1.9.0` and **does not load
@@ -179,8 +196,8 @@ Five focused local 3.6 reruns passed, which does not erase the hosted failures
 or establish that the external library is stable. Their exact internal cause
 has not been isolated. Raw artifacts include graphs and per-client snapshots.
 
-That hosted 3.3.2 package job also exposed the `forEachAsync` fixture issue repaired
-above. The 3.6 package, harness and lint jobs passed. See
+The hosted 3.3.2 package jobs exposed the forEach and then map fixture issues
+repaired above. The 3.6 package, harness and lint jobs passed on both checkpoints. See
 [PR #10 checks](https://github.com/nachocodoner/meteor-reactive-publish/pull/10/checks)
 for CI results after the fixture repair. Full-core CI remains disabled; long
 lifecycle/comprehensive jobs run only on schedules or manual requests. Their

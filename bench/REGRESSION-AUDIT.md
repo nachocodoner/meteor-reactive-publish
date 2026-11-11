@@ -96,7 +96,7 @@ the state at the original audit checkpoint.
 
 The [subsequent optimization report](./INSTRUMENTED-OPTIMIZATION.md) records a
 new cache-hit optimization and a further test-contract audit. The 634-assertion
-statement above describes the earlier checkpoint. In the latest source, 627 of
+statement above describes the earlier checkpoint. In the latest source, 618 of
 those calls and values remain unchanged. Four child-run equalities in one nested
 Mongo test were incorrect: independent observers can notify a child before its
 parent replaces it. A controlled real-Mongo probe demonstrated the same ordering
@@ -107,7 +107,12 @@ case add coverage. A later CI run exposed another incidental rerun count in the
 forEach fixture. It now settles each write before the next and checks exact totals
 6/11/13 instead of 5/9/11, with the same result arrays; the repaired fixture passed
 on both be74b3f and the candidate. These are the other three changed assertions.
-No original test registration was removed.
+A subsequent hosted run found the same removal coalescing in mapAsync. Map and
+fetch fixtures now also settle each write, keeping exact totals and data. This
+changes three map counts and six fetch counts; the full table of 16 corrections
+is in the optimization report. An explicit mapped-result reorder assertion
+preserves move coverage. All 12 Mongo-focused tests pass on base and candidate
+on both releases. No original test registration was removed.
 
 The previously pushed checkpoint's hosted harness and Meteor 3.6 jobs failed,
 despite their local passes. The harness needed optional browser discovery without

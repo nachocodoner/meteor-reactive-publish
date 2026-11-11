@@ -287,8 +287,8 @@ instrumentation coverage and resource cleanup. The report includes the calibrati
 limits, profiles, all compared metrics and remaining optimization opportunities.
 
 The package suite now passes 139/139 locally on both supported Meteor versions.
-Two Mongo fixtures needed seven justified count corrections, validated on
-pre-optimization code and the candidate; 627 of the original 634 direct assertions
+Four Mongo fixtures needed sixteen justified count corrections, validated on
+pre-optimization code and the candidate; 618 of the original 634 direct assertions
 remain unchanged. Previous hosted CI failures and the current broad verification
 status are documented explicitly in the new report. The historical counts and
 verification statements above apply to their respective checkpoints.
