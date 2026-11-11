@@ -54,6 +54,12 @@ jobs:
     needs: harness
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        meteor: ['3.3.2', '3.6']
+    env:
+      BENCH_METEOR_RELEASE: ${{ matrix.meteor }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,40 +70,47 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.meteor
-          key: bench-meteor-3.3.2-${{ runner.os }}-${{ hashFiles('bench/variants/**/*.versions') }}
+          key: bench-meteor-${{ matrix.meteor }}-${{ runner.os }}-${{ hashFiles('bench/variants/**/*.versions') }}
       - uses: meteorengineer/setup-meteor@v2
         with:
-          meteor-release: '3.3.2'
+          meteor-release: ${{ matrix.meteor }}
       - run: npm ci --prefix bench
       - name: Publication smoke checks
         run: |
-          npm run bench -- run --adapter native --output bench/results/smoke/native.json
-          npm run bench -- run --adapter installed --output bench/results/smoke/installed.json
-          npm run bench -- run --adapter composite --output bench/results/smoke/composite.json
-          npm run bench -- run --adapter reactive --scenario subscription-data --output bench/results/smoke/data.json
+          npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter native --output bench/results/smoke/native.json
+          npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter installed --output bench/results/smoke/installed.json
+          npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter composite --output bench/results/smoke/composite.json
+          npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter reactive --scenario subscription-data --output bench/results/smoke/data.json
       - name: Equivalent library smoke comparisons
-        run: npm run bench:libraries -- --suite smoke --pairs 1 --output bench/results/libraries
+        run: npm run bench:libraries -- --meteor "$BENCH_METEOR_RELEASE" --suite smoke --pairs 1 --output bench/results/libraries
       - name: Reactive publication regression checks
         run: |
           for scenario in plain-cursor personalized-selectors dependent-posts one-to-many deep-join fanout multiple-autoruns infinite-scroll async-pressure; do
-            npm run bench -- run --adapter reactive --scenario "$scenario" --output "bench/results/regressions/$scenario.json"
+            npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter reactive --scenario "$scenario" --output "bench/results/regressions/$scenario.json"
           done
+      - name: Meteor 3.6 instrumentation coverage
+        if: matrix.meteor == '3.6'
+        run: |
+          npm run bench -- run --meteor 3.6 --lifecycle --adapter native --scenario sorted-window --output bench/results/lifecycle-smoke/native.json
+          npm run bench -- run --meteor 3.6 --lifecycle --scenario sorted-window --output bench/results/lifecycle-smoke/reactive.json
+          npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-data --output bench/results/lifecycle-smoke/data.json
+          npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-churn --output bench/results/lifecycle-smoke/churn.json
       - name: Full scenario report
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         # Composite relationship-refresh failures remain invalid; see bench/FINDINGS.md.
         continue-on-error: true
-        run: npm run bench:all -- --pairs 1 --profile smoke --output bench/results/full
+        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --pairs 1 --profile smoke --output bench/results/full
       - name: Paired measurements
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:
           BENCH_SCENARIO: ${{ inputs.scenario || 'sorted-window' }}
           BENCH_PAIRS: ${{ inputs.pairs || '5' }}
-        run: npm run bench -- paired --base HEAD --scenario "$BENCH_SCENARIO" --profile standard --warmup 100 --operations 1000 --pairs "$BENCH_PAIRS" --output bench/results/calibration
+        run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base HEAD --scenario "$BENCH_SCENARIO" --profile standard --warmup 100 --operations 1000 --pairs "$BENCH_PAIRS" --output bench/results/calibration
       - name: PR baseline comparison
         if: github.event_name == 'pull_request'
         env:
           BENCH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: npm run bench -- paired --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
+        run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
       - name: Job summary
         if: always()
         run: |
@@ -105,7 +118,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: publication-benchmark-results
+          name: publication-benchmark-results-${{ matrix.meteor }}
           path: bench/results/
           retention-days: 30
 

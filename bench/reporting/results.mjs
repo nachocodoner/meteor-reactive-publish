@@ -171,6 +171,44 @@ export function validateResult(result) {
   )
     errors.push('Incomplete operation count');
   if (result.metrics?.failed_operations !== 0) errors.push('Failed operations');
+  if (result.config?.metricsVersion >= 3) {
+    const calls =
+      result.config.scenario === 'subscription-churn'
+        ? 0
+        : result.config.profile.operations *
+          (['subscription-data', 'infinite-scroll'].includes(
+            result.config.scenario
+          )
+            ? result.config.profile.clients
+            : 1);
+    const samples = result.samples?.methods;
+    if (
+      !Array.isArray(samples) ||
+      samples.length !== calls ||
+      samples.some(
+        (s) =>
+          ['resultMs', 'updatedMs', 'completeMs', 'afterResultMs'].some(
+            (key) => !Number.isFinite(s[key]) || s[key] < 0
+          ) ||
+          s.completeMs !== Math.max(s.resultMs, s.updatedMs) ||
+          s.afterResultMs !== Math.max(0, s.updatedMs - s.resultMs)
+      )
+    )
+      errors.push('Missing/invalid complete method samples');
+    for (const key of [
+      'method_roundtrip_ms',
+      'method_updated_ms',
+      'method_complete_ms',
+      'method_after_result_ms',
+    ]) {
+      if (
+        calls
+          ? !validSamples(result.metrics?.[key], calls)
+          : result.metrics?.[key]?.count !== 0
+      )
+        errors.push(`Missing method acknowledgement coverage: ${key}`);
+    }
+  }
   if (
     result.config?.metricsVersion >= 2 &&
     result.config.rate > 0 &&
@@ -342,6 +380,13 @@ function registryFor(result) {
   return [
     ...metricRegistry,
     ...runtimeMetricRegistry,
+    ...(result.config.metricsVersion >= 3
+      ? [
+          cost('method_updated_ms.p95', 'ms', 1),
+          cost('method_complete_ms.p95', 'ms', 1),
+          cost('method_after_result_ms.p95', 'ms', 1),
+        ]
+      : []),
     ...(result.config.lifecycle
       ? [
           cost('meteor_method_ms.p95', 'ms', 1, {
@@ -490,7 +535,7 @@ export function compareResults(
         : null);
     const minimumSamples = metric.minSamples || 20;
     const generatorLimited =
-      (/^(update_convergence_ms|fanout_completion_ms|scheduled_convergence_ms|method_roundtrip_ms)\./.test(
+      (/^(update_convergence_ms|fanout_completion_ms|scheduled_convergence_ms|method_(roundtrip|updated|complete|after_result)_ms)\./.test(
         metric.path
       ) ||
         metric.path === 'completed_operations_per_second') &&
@@ -609,6 +654,10 @@ export function resultMarkdown(result) {
             'subscription_ready_ms',
             'update_convergence_ms',
             'fanout_completion_ms',
+            'method_roundtrip_ms',
+            'method_updated_ms',
+            'method_complete_ms',
+            'method_after_result_ms',
           ];
   const rows = names.map((key) => {
     const metric = getMetric(result, key);

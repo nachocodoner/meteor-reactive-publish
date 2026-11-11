@@ -273,3 +273,22 @@ The replacement runner checks source identities, uses the supported extra-packag
 option, preserves failed/incomplete outcomes, and never restores checkout files.
 All 64 Node harness tests pass, including four new orchestration cases. Package
 and performance-harness source hashes match the previous validated smoke run.
+
+
+**Instrumentation-guided cache optimization (2026-11-11).**
+
+The [new optimization report](./INSTRUMENTED-OPTIMIZATION.md) adds per-call DDP
+`updated`, completion and post-result waiting metrics while continuing to use
+Meteor 3.6 instrumentation. Five alternating revision pairs measured CPU falling
+from 6.445 to 6.054 ms/operation (6.1%) after moving the exact cursor-cache lookup
+before key scanning. Throughput and completion-latency intervals do not establish
+an improvement; delivery p95 increased by 0.055 ms. All ten runs passed exact data,
+instrumentation coverage and resource cleanup. The report includes the calibration
+limits, profiles, all compared metrics and remaining optimization opportunities.
+
+The package suite now passes 139/139 locally on both supported Meteor versions.
+One nested Mongo fixture needed four justified child-run expectation corrections,
+reproduced before and after optimization; 630 of the original 634 direct assertions
+remain unchanged. Previous hosted CI failures and the current broad verification
+status are documented explicitly in the new report. The historical counts and
+verification statements above apply to their respective checkpoints.

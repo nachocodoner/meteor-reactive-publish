@@ -74,7 +74,7 @@ export async function runBenchmark(options) {
       scenarioVersion,
       level: options.level || 'ddp',
       rate: options.rate || 0,
-      metricsVersion: 2,
+      metricsVersion: 3,
       measurement: options.measurement || 'core',
       databaseMetrics: !!options.databaseMetrics,
       databaseProfile: !!options.databaseProfile,
@@ -528,6 +528,9 @@ export async function runBenchmark(options) {
       server,
       traffic: [...clients, writer].map((client) => client.traffic),
     };
+    result.samples.methods = [...clients, writer].flatMap(
+      (client) => client.methodTimings
+    );
     Object.assign(result.metrics, server, {
       subscription_ready_ms: summarize(result.samples.ready),
       update_convergence_ms: summarize(result.samples.convergence),
@@ -537,6 +540,15 @@ export async function runBenchmark(options) {
       ),
       method_roundtrip_ms: summarize(
         [...clients, writer].flatMap((client) => client.methodLatencies)
+      ),
+      method_updated_ms: summarize(
+        result.samples.methods.map((s) => s.updatedMs)
+      ),
+      method_complete_ms: summarize(
+        result.samples.methods.map((s) => s.completeMs)
+      ),
+      method_after_result_ms: summarize(
+        result.samples.methods.map((s) => s.afterResultMs)
       ),
       ddp_payload_bytes: [...clients, writer].reduce(
         (sum, client) => sum + client.traffic.payload_bytes,
@@ -640,6 +652,11 @@ export async function runBenchmark(options) {
     await delay(100);
     result.diagnostics = {
       clientStates: clients.map((client) => client.store.snapshot()),
+      methodCalls: [...clients, writer].filter(Boolean).map((client) => ({
+        results: client.methodLatencies,
+        completed: client.methodTimings,
+        traffic: client.traffic,
+      })),
       appTail: app?.output(),
     };
   } finally {

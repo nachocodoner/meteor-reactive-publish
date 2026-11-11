@@ -90,3 +90,24 @@ one pre-existing metadata-message assumption, reproduced on the package base;
 no upstream assertion was rewritten. The legacy runner has been replaced by an
 isolated CLI wrapper. The earlier remaining-verification paragraph above describes
 the state at the original audit checkpoint.
+
+
+## Instrumentation-guided optimization follow-up
+
+The [subsequent optimization report](./INSTRUMENTED-OPTIMIZATION.md) records a
+new cache-hit optimization and a further test-contract audit. The 634-assertion
+statement above describes the earlier checkpoint. In the latest source, 630 of
+those calls and values remain unchanged. Four child-run equalities in one nested
+Mongo test were incorrect: independent observers can notify a child before its
+parent replaces it. A controlled real-Mongo probe demonstrated the same ordering
+on both pre-optimization `be74b3f` and the candidate. Those four expectations now
+allow additional child reruns; exact parent/child creation counts, published data
+and cleanup requirements remain checked. The probe and a projected-sort cache
+case add coverage. No original test registration was removed.
+
+The previously pushed checkpoint's hosted harness and Meteor 3.6 jobs failed,
+despite their local passes. The harness needed optional browser discovery without
+root Puppeteer installed; the package failure exposed the observer-order assumption
+above. Both failures and their controlled reproductions are retained. The new
+full package runs pass 139/139 on both Meteor 3.3.2 and 3.6, with no late assertions.
+See the follow-up report for complete smoke, full-core and hosted CI status.

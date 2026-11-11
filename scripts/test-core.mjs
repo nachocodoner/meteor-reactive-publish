@@ -5,7 +5,6 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual, promisify } from 'node:util';
 import { execFile } from 'node:child_process';
-import puppeteer from 'puppeteer';
 import {
   command,
   freePort,
@@ -190,26 +189,38 @@ try {
   result.core = runtime.identity;
   sourceIdentity = await sourceInfo(source);
   result.source = sourceIdentity;
-  const executable =
+  let executable =
     values.executable ||
     process.env.PUPPETEER_EXECUTABLE_PATH ||
-    process.env.CHROME_BIN ||
-    (
+    process.env.CHROME_BIN;
+  if (!executable) {
+    // The benchmark-only installation has no root Puppeteer dependency. An
+    // explicit/system browser is sufficient: core owns its browser runner.
+    let cachedBrowser;
+    try {
+      cachedBrowser = (await import('puppeteer')).default.executablePath();
+    } catch (error) {
+      if (error.code !== 'ERR_MODULE_NOT_FOUND') throw error;
+    }
+    executable = (
       await Promise.all(
         [
-          puppeteer.executablePath(),
+          cachedBrowser,
           '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
           '/usr/bin/google-chrome',
           '/usr/bin/chromium',
-        ].map(
-          async (file) =>
-            await fs.access(file).then(
-              () => file,
-              () => null
-            )
-        )
+        ]
+          .filter(Boolean)
+          .map(
+            async (file) =>
+              await fs.access(file).then(
+                () => file,
+                () => null
+              )
+          )
       )
     ).find(Boolean);
+  }
   if (!executable) throw new Error('Install Chrome or pass --executable');
   const env = {
     PUPPETEER_EXECUTABLE_PATH: executable,

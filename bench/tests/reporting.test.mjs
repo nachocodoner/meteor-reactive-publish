@@ -301,6 +301,76 @@ test('new collector coverage is mandatory, including cleanup and profiler comple
   assert.ok(errors.includes('Resource cleanup was not verified'));
 });
 
+test('complete-call coverage requires every successful call and same-call timestamp arithmetic', () => {
+  const result = run();
+  result.config.metricsVersion = 3;
+  for (const key of [
+    'app_heap_used_bytes',
+    'app_external_bytes',
+    'app_array_buffers_bytes',
+    'end_heap_used_bytes',
+    'event_loop_samples',
+    'event_loop_utilization',
+    'gc_pause_ms',
+    'gc_count',
+    'gc_max_pause_ms',
+  ])
+    result.metrics[key] = 0;
+  result.samples = {
+    methods: Array.from({ length: 20 }, () => ({
+      resultMs: 2,
+      updatedMs: 12,
+      completeMs: 12,
+      afterResultMs: 10,
+    })),
+  };
+  for (const [key, value] of Object.entries({
+    method_roundtrip_ms: 2,
+    method_updated_ms: 12,
+    method_complete_ms: 12,
+    method_after_result_ms: 10,
+  }))
+    result.metrics[key] = summarize(Array(20).fill(value));
+  assert.deepEqual(validateResult(result), []);
+  for (const mutate of [
+    (r) => r.samples.methods.pop(),
+    (r) => {
+      r.samples.methods[0].completeMs = 2;
+    },
+    (r) => {
+      r.samples.methods[0].afterResultMs = -10;
+    },
+    (r) => {
+      r.metrics.method_updated_ms.count = 19;
+    },
+    (r) => {
+      r.config.scenario = 'subscription-data';
+    },
+    (r) => {
+      r.config.scenario = 'infinite-scroll';
+    },
+  ]) {
+    const missing = structuredClone(result);
+    mutate(missing);
+    assert.notDeepEqual(validateResult(missing), []);
+  }
+  const report = compareResults(Array(5).fill(result), Array(5).fill(result));
+  assert.ok(
+    report.details.some((row) => row.metric === 'method_complete_ms.p95')
+  );
+  result.config.scenario = 'subscription-churn';
+  result.samples.methods = [];
+  result.metrics.subscription_ready_ms = summarize(Array(420).fill(1));
+  for (const key of [
+    'method_roundtrip_ms',
+    'method_updated_ms',
+    'method_complete_ms',
+    'method_after_result_ms',
+  ])
+    result.metrics[key] = summarize([]);
+  assert.deepEqual(validateResult(result), []);
+});
+
 test('a saturated generator makes client timings inconclusive without suppressing server CPU evidence', () => {
   const left = Array.from({ length: 5 }, () => run());
   const right = Array.from({ length: 5 }, () => run(100));

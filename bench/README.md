@@ -25,17 +25,29 @@ npm run bench -- paired --meteor 3.6 --lifecycle --base <baseline-commit> \
   --pairs 5 --output bench/results/lifecycle/revision
 ```
 
-Run JSON and Markdown include per-method starts, completions, errors, durations, publication readiness/stops and active DDP connections. Full-suite HTML also shows lifecycle diagnostics per run. Revision and library comparisons include server method p95 and initial publication readiness p95 alongside existing client latency, CPU, heap and observer costs. The weekly/manual `lifecycle` CI job records native, repeated library, and churn results as artifacts; correctness and missing event coverage fail the job. Hosted-runner timing remains advisory. These focused checks do not establish full Meteor 3.6 package compatibility; the existing compatibility failures still block a release claim.
+Run JSON and Markdown include per-method starts, completions, errors, durations, publication readiness/stops and active DDP connections. Full-suite HTML also shows lifecycle diagnostics per run. Revision and library comparisons include server method p95 and initial publication readiness p95 alongside existing client latency, CPU, heap and observer costs. The weekly/manual `lifecycle` CI job records native, repeated library, and churn results as artifacts; correctness and missing event coverage fail the job. Hosted-runner timing remains advisory. These focused checks do not establish full Meteor 3.6 package compatibility; see the separate [regression audit](./REGRESSION-AUDIT.md) and [full-core results](./CORE-TESTING.md).
 
 The consumer keeps at most 10,000 timings per series and 10,000 live IDs per category. Counts, errors, mean and maximum cover all observed events, including errors after the timing cap. Once samples are capped, percentiles become unavailable rather than describing only the earliest requests. p95 requires 20 observations and p99 requires 1,000. Warmup timings are reset; live identities survive resets so stops can be matched to earlier subscriptions. Overflow, listener errors, invalid durations, missing workload events or unfinished methods invalidate the run. A successful and deliberately failing method probe verifies the API before measurement; its expected error is excluded from the measured workload.
 
 Interpret the latency layers separately: Meteor's millisecond wall-clock method duration starts at dispatch, excludes earlier queue waiting, and ends before sending the method result. The client `method_roundtrip_ms` measures receipt of that result. The workload waits for both `result` and DDP `updated` before completing a call, so neither method metric alone establishes throughput or the final acknowledgment latency. Publication readiness describes initial setup; publication stop describes a lifecycle event, not completion of cleanup. Existing exact document checks and observer/computation cleanup checks still apply. These events do not time internal Mongo queries, individual reruns, or DDP delivery; use the existing profiler and observer counters for those questions. Do not subtract independent percentiles to estimate queue time.
 
+Metrics version 3 also records `method_updated_ms` (dispatch to `updated`),
+`method_complete_ms` (dispatch until both acknowledgments arrive), and
+`method_after_result_ms` (the remaining wait after that call's result, zero when
+`updated` arrived first). Raw `samples.methods` preserves paired timestamps for
+each successful call without method arguments or results. These are client-side
+measurements alongside the optional server instrumentation. Coverage validation
+requires every expected call, including per-client subscription-data and limit
+methods; churn has no measured method calls. Incomplete calls stay invalid.
+Comparison reports include the new p95s with the existing repetition, sample-count
+and generator-saturation safeguards. Different metric/harness versions cannot be
+used as a before/after pair.
+
 Listeners run synchronously, so collection has a cost. Calibrate with repeated runs on the same Meteor 3.6 runtime, source, fixture and workload, alternating `--lifecycle` on and off. Treat this as a separate overhead experiment; the normal comparison command deliberately rejects mixed instrumentation settings. Comparing 3.3.2 without the package against 3.6 with it would confound runtime changes with collector overhead. Keep both sides enabled for subsequent library/revision comparisons, and repeat A/A calibration before enabling a timing gate. No arguments, results, addresses, user IDs or raw event payloads are retained by this collector.
 
 This suite measures real Meteor publications over DDP without rendering a UI. It builds separate production apps for each library, starts a private Mongo replica set, validates client data, and writes JSON and Markdown reports. It also provides backend primitive measurements and an optional check of the actual Meteor browser client.
 
-Some workloads currently expose publication correctness failures. Such runs exit nonzero and are excluded from performance comparisons. See [FINDINGS.md](./FINDINGS.md) for reproduction commands and the distinction between tested smoke coverage and the extended matrix.
+Correctness failures exit nonzero and are excluded from performance comparisons. See [FINDINGS.md](./FINDINGS.md) for historical findings and [the instrumentation-guided optimization report](./INSTRUMENTED-OPTIMIZATION.md) for the latest measurements and verification boundaries.
 
 Install the bench dependencies and run a small validated scenario from the repository root:
 
@@ -278,11 +290,11 @@ All outputs go under ignored `bench/results/` unless `--output` is provided. Eac
 | Test or benchmark                                                      | Current runtime selection                                                                                                                                                                                         |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DDP, backend, browser, library, revision, and comprehensive benchmarks | **Meteor 3.3.2**, from [`config/runtime-lock.json`](./config/runtime-lock.json); override explicitly with `--meteor <release>`                                                                                    |
-| Benchmark CI                                                           | Installs Meteor **3.3.2** in [the benchmark workflow](../.github/workflows/bench.yml); harness Node is separately pinned to **22.22.0**                                                                           |
+| Benchmark CI                                                           | Tests Meteor **3.3.2 and 3.6** in [the benchmark workflow](../.github/workflows/bench.yml); harness Node is separately pinned to **22.22.0**                                                                           |
 | `npm run bench:test`                                                   | Node-only harness tests; no Meteor application or Mongo server starts                                                                                                                                             |
-| Package-test CI                                                        | Installs Meteor **3.3.2** in [the package-test workflow](../.github/workflows/test-package.yml), then runs `test:ci`                                                                                              |
+| Package-test CI                                                        | Tests Meteor **3.3.2 and 3.6** in [the package-test workflow](../.github/workflows/test-package.yml), using `test:ci`                                                                                              |
 | Local `npm test` / `npm run test:ci`                                   | The scripts do not explicitly select a release; pass `--release` as shown below to avoid relying on the local Meteor default                                                                                      |
-| `npm run test:core`                                                    | Uses the repository's `meteor-core` submodule commit through [`scripts/test-core.sh`](../scripts/test-core.sh), not the benchmark release; [its CI job](../.github/workflows/test-core.yml) is currently disabled |
+| `npm run test:core`                                                    | Requires an explicit isolated `--checkout`; see [CORE-TESTING.md](./CORE-TESTING.md). [Its CI job](../.github/workflows/test-core.yml) remains disabled |
 
 The recorded Meteor 3.3.2 benchmark runs use application **Node 22.18.0** and **MongoDB 7.0.16** from that release's dev bundle. The Node executable launching `bench/cli.mjs` is the separate harness/client generator process. `doctor` prints that harness Node version, the selected Meteor runtime, the application Node executable path and version, and the Mongo version. Actual run JSON records application `metadata.node`, `metadata.meteor`, `metadata.meteorRuntime`, `metadata.mongo`, resolved `metadata.packages`, hardware, and source/harness identities.
 
@@ -328,7 +340,7 @@ The focused experiment above uses 100 warmup and 1,000 measured operations per r
 
 Ordinary `compare` deliberately rejects different Meteor runtimes, checkout contents, Node, Mongo, or shared Meteor package versions. There is **no automated cross-runtime comparison mode** yet: inspect the separate reports as a runtime-upgrade study instead of bypassing compatibility checks or calling the difference a reactive-publish regression. A release change may include core package, Node, or Mongo changes, so it does not isolate a particular core patch.
 
-After choosing a new default release, update `config/runtime-lock.json`, keep the reviewed locks for all four adapters, and align the Meteor install versions and release-specific cache keys in the benchmark workflow plus the package-test workflow's install version. Update npm locks only when npm dependencies change. Re-run package correctness, benchmark smoke checks, and repeated measurements, then establish new baselines. Current CI does not automatically test a matrix of Meteor releases or follow new core releases.
+After choosing a new default release, update `config/runtime-lock.json`, keep the reviewed locks for all four adapters, and align the Meteor install versions and release-specific cache keys in the benchmark workflow plus the package-test workflow's install version. Update npm locks only when npm dependencies change. Re-run package correctness, benchmark smoke checks, and repeated measurements, then establish new baselines. CI tests the explicit 3.3.2/3.6 matrix; it does not automatically follow new releases.
 
 **Run against a local Meteor core checkout.**
 
@@ -364,7 +376,7 @@ Results include the Git revision, a content fingerprint, dirty status, and recur
 
 **CI blocks on publication regressions and retains external-library failures.**
 
-[The workflow](../.github/workflows/bench.yml) runs protocol/reporting tests, native/installed/composite cursor checks, reactive subscription-data, and paired library smoke checks for sorted-window, churn, and shared authors. A blocking regression step also exercises reactive plain-cursor, dependent-posts, one-to-many, deep-join, fanout, multiple-autoruns, infinite-scroll, and async-pressure. The separate package-test workflow includes the client/server lifecycle regression tests.
+[The workflow](../.github/workflows/bench.yml) runs protocol/reporting tests and smoke checks on both Meteor 3.3.2 and 3.6, including native/installed/composite cursor checks, reactive subscription-data, and paired library smoke checks for sorted-window, churn, and shared authors. A blocking regression step also exercises reactive plain-cursor, dependent-posts, one-to-many, deep-join, fanout, multiple-autoruns, infinite-scroll, and async-pressure. Meteor 3.6 also gets blocking method/publication/connection instrumentation smoke checks. The separate package-test workflow includes the client/server lifecycle regression tests.
 
 PRs get a one-pair advisory comparison against the base package. Scheduled/manual runs perform repeated revision comparisons and `bench:all`, publishing the full HTML/Markdown/JSON report in artifacts. The full-suite step remains non-blocking because the pinned composite release still fails relationship-refresh cases; its invalid results remain visible in job summaries and artifacts. Timing gates are opt-in. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and their local validation.
 

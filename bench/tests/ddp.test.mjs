@@ -187,4 +187,65 @@ test('method acknowledgement without updated cannot complete a call', async (t) 
   });
   client.timeout = 30;
   await assert.rejects(client.call('incomplete'), /Timeout/);
+  assert.equal(client.methodTimings.length, 0);
+});
+
+test('complete-call metrics preserve both acknowledgement orders and reset together', async (t) => {
+  const client = await serverFor(t, (msg, send) => {
+    if (msg.msg !== 'method') return;
+    const result = { msg: 'result', id: msg.id, result: msg.method };
+    const updated = { msg: 'updated', methods: [msg.id] };
+    const resultFirst = msg.method === 'result-first';
+    send(resultFirst ? result : updated);
+    setTimeout(() => send(resultFirst ? updated : result), 50);
+  });
+  for (const method of ['result-first', 'updated-first']) {
+    assert.equal(await client.call(method), method);
+  }
+  const [resultFirst, updatedFirst] = client.methodTimings;
+  assert.ok(resultFirst.afterResultMs >= 35);
+  assert.equal(resultFirst.completeMs, resultFirst.updatedMs);
+  assert.equal(
+    resultFirst.afterResultMs,
+    resultFirst.updatedMs - resultFirst.resultMs
+  );
+  assert.ok(updatedFirst.resultMs - updatedFirst.updatedMs >= 35);
+  assert.equal(updatedFirst.completeMs, updatedFirst.resultMs);
+  assert.equal(updatedFirst.afterResultMs, 0);
+  assert.deepEqual(
+    client.methodLatencies,
+    client.methodTimings.map((s) => s.resultMs)
+  );
+  client.resetMetrics();
+  assert.deepEqual(client.methodTimings, []);
+  assert.deepEqual(client.methodLatencies, []);
+});
+
+test('concurrent calls associate batched updated acknowledgements by method ID', async (t) => {
+  const pending = [];
+  const client = await serverFor(t, (msg, send) => {
+    if (msg.msg !== 'method') return;
+    pending.push(msg);
+    if (pending.length !== 2) return;
+    send({ msg: 'result', id: pending[1].id, result: 'second' });
+    send({ msg: 'updated', methods: pending.map((m) => m.id) });
+    setTimeout(
+      () => send({ msg: 'result', id: pending[0].id, result: 'first' }),
+      40
+    );
+  });
+  assert.deepEqual(
+    await Promise.all([client.call('first'), client.call('second')]),
+    ['first', 'second']
+  );
+  assert.equal(client.methodTimings.length, 2);
+  assert.equal(
+    client.methodTimings[0].completeMs,
+    client.methodTimings[0].updatedMs
+  );
+  assert.equal(
+    client.methodTimings[1].completeMs,
+    client.methodTimings[1].resultMs
+  );
+  assert.equal(client.methodTimings[1].afterResultMs, 0);
 });

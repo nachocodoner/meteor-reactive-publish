@@ -23,6 +23,7 @@ export class DDPClient extends EventEmitter {
     this.sequence = 0;
     this.traffic = blankTraffic();
     this.methodLatencies = [];
+    this.methodTimings = [];
     this.subscriptions = new Set();
     this.unsubscribing = new Set();
     this.closed = false;
@@ -32,6 +33,7 @@ export class DDPClient extends EventEmitter {
   resetMetrics() {
     this.traffic = blankTraffic();
     this.methodLatencies = [];
+    this.methodTimings = [];
   }
 
   count(direction, message, bytes) {
@@ -173,21 +175,38 @@ export class DDPClient extends EventEmitter {
     let result;
     let gotResult = false;
     let updated = false;
+    let resultMs;
+    let updatedMs;
     const start = performance.now();
     const complete = this.waitFor((message) => {
-      if (message?.msg === 'result' && message.id === id) {
+      if (message?.msg === 'result' && message.id === id && !gotResult) {
         if (message.error)
           throw new Error(`Method ${method}: ${JSON.stringify(message.error)}`);
         result = message.result;
         gotResult = true;
-        this.methodLatencies.push(performance.now() - start);
+        resultMs = performance.now() - start;
+        this.methodLatencies.push(resultMs);
       }
-      if (message?.msg === 'updated' && message.methods.includes(id))
+      if (
+        message?.msg === 'updated' &&
+        message.methods.includes(id) &&
+        !updated
+      ) {
         updated = true;
+        updatedMs = performance.now() - start;
+      }
       return gotResult && updated;
     }, `method ${method}`);
     this.send({ msg: 'method', id, method, params });
     await complete;
+    // Both timestamps belong to this call. updated may precede result; the
+    // post-result wait is then zero, never a subtraction of aggregate p95s.
+    this.methodTimings.push({
+      resultMs,
+      updatedMs,
+      completeMs: Math.max(resultMs, updatedMs),
+      afterResultMs: Math.max(0, updatedMs - resultMs),
+    });
     return result;
   }
 

@@ -45,6 +45,7 @@ const meanMetric = (variant, metric) => {
 const metricColumns = [
   ['Ready p95 ms', 'subscription_ready_ms.p95'],
   ['Update p95 ms', 'update_convergence_ms.p95'],
+  ['Complete call p95 ms', 'method_complete_ms.p95'],
   ['CPU ms/op', 'cpu_ms_per_operation'],
   ['Peak RSS bytes', 'app_rss_bytes'],
   ['DDP bytes/op', 'bytes_per_operation'],
