@@ -290,12 +290,28 @@ try {
     { cwd: runtime.checkout, env }
   ).catch(() => '');
   if (installed !== '25.9.0')
-    await command(runtime.cli, ['npm', 'install', '-g', 'puppeteer@25.9.0'], {
-      cwd: runtime.checkout,
-      env,
-      log,
-      timeout: remaining(),
-    });
+    await command(
+      runtime.cli,
+      [
+        'npm',
+        'install',
+        '-g',
+        '--prefix',
+        path.join(runtime.checkout, 'dev_bundle'),
+        'puppeteer@25.9.0',
+      ],
+      { cwd: runtime.checkout, env, log, timeout: remaining() }
+    );
+  // npm run can inherit a prefix for the host Node installation. Install in
+  // the core bundle explicitly and fail before building if it cannot be loaded.
+  await command(
+    node,
+    [
+      '-e',
+      "require('./dev_bundle/lib/node_modules/puppeteer'); if (require('./dev_bundle/lib/node_modules/puppeteer/package.json').version !== '25.9.0') process.exit(1)",
+    ],
+    { cwd: runtime.checkout, env, log, timeout: remaining() }
+  );
   // Keep the generated app outside this repository's ESM package scopes.
   result.app = await fs.mkdtemp(
     path.join(os.tmpdir(), 'reactive-publish-core-')

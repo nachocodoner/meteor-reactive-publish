@@ -40,6 +40,7 @@ async function fixture(work) {
     await write(
       path.join(core, 'packages/test-in-console/puppeteer_runner.js'),
       `
+require('../../dev_bundle/lib/node_modules/puppeteer');
 console.log('C: tinytest - fixture - contract : ' + (process.env.FAKE_FAILURE ? '!!!!!!!!! FAIL !!!!!!!!!!!' : 'OK'));
 console.log(process.env.FAKE_FAILURE ? 'passed/expected/failed/total 0 / 0 / 1 / 1' : 'passed/expected/failed/total 1 / 0 / 0 / 1');
 // A successful process must not hide failed assertions.
@@ -51,6 +52,15 @@ process.exit(0);
       `#!/usr/bin/env node
 const fs=require('node:fs'); const path=require('node:path');
 const args=process.argv.slice(2); if(args[0]==='--help') process.exit(0);
+if(args[0]==='npm') {
+ const prefixIndex=args.indexOf('--prefix');
+ const prefix=prefixIndex>=0 ? args[prefixIndex+1] : process.env.npm_config_prefix || process.env.NPM_CONFIG_PREFIX || path.resolve('dev_bundle');
+ const dir=path.join(prefix,'lib/node_modules/puppeteer');
+ fs.mkdirSync(dir,{recursive:true});
+ fs.writeFileSync(path.join(dir,'package.json'),JSON.stringify({version:'25.9.0'}));
+ fs.writeFileSync(path.join(dir,'index.js'),'module.exports={};');
+ process.exit(0);
+}
 fs.writeFileSync('seen.json',JSON.stringify(args));
 if(process.env.FAKE_MUTATE_CORE)fs.appendFileSync('packages/sentinel.tests.js','// unexpected mutation\\n');
 const app=args[args.indexOf('--test-app-path')+1];
@@ -78,6 +88,10 @@ require('node:http').createServer((req,res)=>res.end('test app')).listen(Number(
     await write(
       path.join(core, 'dev_bundle/lib/node_modules/puppeteer/package.json'),
       '{"version":"25.9.0"}\n'
+    );
+    await write(
+      path.join(core, 'dev_bundle/lib/node_modules/puppeteer/index.js'),
+      'module.exports = {};\n'
     );
     await git('init', '-q');
     await git('add', '.');
@@ -150,6 +164,20 @@ test('core runner selects the full upstream baseline and leaves tests untouched'
     ]);
     assert.equal(summary.coreUnchanged, true);
     assert.equal((await git('diff', '--exit-code')).stdout, '');
+  });
+});
+
+test('core runner installs its browser dependency despite an inherited npm prefix', async () => {
+  await fixture(async ({ invoke, core }) => {
+    await fs.rm(path.join(core, 'dev_bundle/lib/node_modules/puppeteer'), {
+      recursive: true,
+    });
+    const { execution, summary } = await invoke('baseline', {
+      npm_config_prefix: path.join(core, 'dev_bundle/wrong-prefix'),
+    });
+    assert.equal(execution.code, 0, execution.stderr);
+    assert.equal(summary.status, 'passed');
+    assert.equal(summary.tests.total, 1);
   });
 });
 
