@@ -5,6 +5,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual, promisify } from 'node:util';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   command,
   freePort,
@@ -189,6 +190,15 @@ try {
   result.core = runtime.identity;
   sourceIdentity = await sourceInfo(source);
   result.source = sourceIdentity;
+  // METEOR_PACKAGE_DIRS contains directories of packages, not package roots.
+  // An isolated link prevents registry fallback and sibling-checkout ambiguity.
+  const packageDirectory = path.join(output, 'packages');
+  await fs.mkdir(packageDirectory);
+  await fs.symlink(
+    source,
+    path.join(packageDirectory, 'reactive-publish'),
+    'dir'
+  );
   let executable =
     values.executable ||
     process.env.PUPPETEER_EXECUTABLE_PATH ||
@@ -242,7 +252,7 @@ try {
     TINYTEST_FILTER: '',
     METEOR_PACKAGE_DIRS: [
       path.join(runtime.checkout, 'packages/deprecated'),
-      source,
+      packageDirectory,
     ].join(path.delimiter),
   };
   console.log(
@@ -358,6 +368,45 @@ try {
     throw new Error(
       'The package under comparison must not add its own tests to the core inventory'
     );
+  if (values.mode === 'package') {
+    const buildInfoPath = path.join(
+      result.app,
+      '.meteor/local/isopacks/nachocodoner_reactive-publish/isopack-buildinfo.json'
+    );
+    const buildInfo = JSON.parse(await fs.readFile(buildInfoPath, 'utf8'));
+    const watched = new Map();
+    for (const dependencies of Object.values(buildInfo.unibuildDependencies)) {
+      for (const [file, hash] of Object.entries(dependencies.files)) {
+        const real = await fs.realpath(file).catch(() => file);
+        watched.set(real, hash);
+      }
+    }
+    const productionFiles = sourceIdentity.names.filter(
+      (name) =>
+        name === 'package.js' ||
+        name === 'main.js' ||
+        (name.startsWith('lib/') &&
+          name.endsWith('.js') &&
+          !name.endsWith('.tests.js') &&
+          name !== 'lib/testHelpers.js')
+    );
+    result.verifiedSourceFiles = [];
+    for (const name of productionFiles) {
+      const file = await fs.realpath(path.join(source, name));
+      const hash = createHash('sha1')
+        .update(await fs.readFile(file))
+        .digest('hex');
+      if (watched.get(file) !== hash)
+        throw new Error(
+          'Compiled package source does not match selected source: ' + name
+        );
+      result.verifiedSourceFiles.push(name);
+    }
+    await fs.copyFile(
+      buildInfoPath,
+      path.join(output, 'package-buildinfo.json')
+    );
+  }
   console.log(
     `[core] App ready; executing upstream Puppeteer runner at ${result.url}`
   );

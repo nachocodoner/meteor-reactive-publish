@@ -41,6 +41,31 @@ accepted, with the entire resolved dependency graph unchanged. Other local sourc
 test, dependency or submodule revisions are rejected. These generated metadata
 changes stay confined to the disposable worktree.
 
+## Correction and current behavior — 2026-11-11
+
+The earlier package-loaded results below are superseded. The runner passed a
+package root to `METEOR_PACKAGE_DIRS`, which expects a directory containing
+packages. Meteor could therefore load the published 1.1.1 package while the
+report recorded a hash of the local checkout. Those runs do **not** establish
+the behavior of the recorded candidate or base revisions.
+
+The runner now creates an isolated package link and verifies every production
+source file against Meteor's compiled-package watch set, including its content
+hash. A matching version string alone is insufficient. The build manifest is
+saved as `package-buildinfo.json`; missing or different source fails validation.
+
+Ordinary publications no longer create empty subscription metadata. A server
+publication initializes that document when it first calls `data` or `setData`;
+client writes still upsert it, and stopping the subscription removes it. The
+original upstream eight-message assertion passes without rewriting or filtering
+core tests. The wire probe now requires zero metadata messages for plain cursors.
+
+The core workflow is enabled for PRs, master and manual runs, pinned to the
+checkout below. Each Mongo backend runs the unmodified baseline followed by the
+verified local package. See [CI repair](./CI-REPAIR.md) for current results.
+
+## Historical results (source selection was not verified)
+
 ## Revision selection on 2026-11-11
 
 After fetching both branches, `origin/devel` was

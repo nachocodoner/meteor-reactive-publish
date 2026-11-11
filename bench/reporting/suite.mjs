@@ -110,7 +110,7 @@ const lifecycleRows = (entry) =>
       })
   );
 const description = (report) =>
-  `Meteor ${report.config.meteor}; publish-composite ${report.compositeVersion}; ${report.requestedPairs} repetition(s) per variant; ${report.config.profile.clients} clients; ${report.config.profile.parents} parents; ${report.config.profile.operations} ${report.config.comprehensive ? 'core-stage ' : ''}measured operations per run; seed ${report.config.seed}.`;
+  `Meteor ${report.config.meteor}; publish-composite ${report.compositeVersion}; adapters: ${report.config.adapters?.join(', ') || 'all supported'}; ${report.requestedPairs} repetition(s) per variant; ${report.config.profile.clients} clients; ${report.config.profile.parents} parents; ${report.config.profile.operations} ${report.config.comprehensive ? 'core-stage ' : ''}measured operations per run; seed ${report.config.seed}.`;
 const metricNote =
   'Values are means of independent per-run summaries, including percentiles (not pooled percentiles). At least five paired runs are needed for statistical comparisons; p95 needs 20 observations per run and p99 needs 1,000. Invalid/incomplete variants have no performance ranking. Comparisons and practical budgets remain advisory. Positive changes mean the metric increased: lower costs and higher throughput are preferable; utilization is contextual. Intervals are approximate 95% paired-bootstrap target-minus-baseline delta intervals. No universal library score is assigned.';
 const title = (report) =>

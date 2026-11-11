@@ -16,7 +16,7 @@ async function waitFor(predicate) {
 }
 
 Tinytest.addAsync(
-  'ReactivePublish core integration - metadata does not remove cursor documents',
+  'ReactivePublish core integration - ordinary cursors emit no subscription metadata',
   async (test) => {
     const { conn, messages, cleanup } = await captureConnectionMessages(test);
     const name = 'core_wire_probe_' + Random.id();
@@ -48,18 +48,10 @@ Tinytest.addAsync(
           subscription.ready() &&
           messages.some(
             (message) => message.msg === 'nosub' && message.id === previous
-          ) &&
-          messages.some(
-            (message) =>
-              message.msg === 'removed' &&
-              message.collection === '_subscriptionData'
           )
       );
       const metadata = messages.filter(
         (message) => message.collection === '_subscriptionData'
-      );
-      const cursorMessages = messages.filter(
-        (message) => message.collection !== '_subscriptionData'
       );
       console.log(
         'core-wire-probe',
@@ -69,7 +61,7 @@ Tinytest.addAsync(
       );
       // Keep the upstream cursor ordering contract, with its original eight events.
       test.equal(
-        cursorMessages.map((message) => message.msg),
+        messages.map((message) => message.msg),
         ['sub', 'added', 'ready', 'sub', 'unsub', 'added', 'ready', 'nosub']
       );
       test.equal(
@@ -78,14 +70,7 @@ Tinytest.addAsync(
         ).length,
         0
       );
-      test.equal(
-        metadata.filter((message) => message.msg === 'added').length,
-        2
-      );
-      test.equal(
-        metadata.filter((message) => message.msg === 'removed').length,
-        1
-      );
+      test.equal(metadata.length, 0);
     } finally {
       computation?.stop();
       cleanup();

@@ -1,5 +1,11 @@
 # Reactive publish benchmarks
 
+PR checks run every reactive-publish/native/installed variant and the browser
+check as blocking tests (29 variants). All ten unmodified publish-composite
+variants run separately as an advisory reference job; failures stay invalid and
+are excluded from rankings. `bench:all` without `--adapters` still runs all 39
+variants and fails if any fail. See [CI repair](./CI-REPAIR.md).
+
 ## Optional Meteor 3.6 lifecycle diagnostics
 
 Meteor's released `instrumentation@0.0.1` package is usable now. The [instrumentation dashboard example](https://github.com/meteor/examples/pull/53) demonstrates consuming its events in an application; this harness uses an in-memory consumer so storage and dashboard rendering do not enter the measured workload. The production library does not depend on this package. The default benchmark runtime remains Meteor 3.3.2.
@@ -294,7 +300,7 @@ All outputs go under ignored `bench/results/` unless `--output` is provided. Eac
 | `npm run bench:test`                                                   | Node-only harness tests; no Meteor application or Mongo server starts                                                                                                                                             |
 | Package-test CI                                                        | Tests Meteor **3.3.2 and 3.6** in [the package-test workflow](../.github/workflows/test-package.yml), using `test:ci`                                                                                              |
 | Local `npm test` / `npm run test:ci`                                   | The scripts do not explicitly select a release; pass `--release` as shown below to avoid relying on the local Meteor default                                                                                      |
-| `npm run test:core`                                                    | Requires an explicit isolated `--checkout`; see [CORE-TESTING.md](./CORE-TESTING.md). [Its CI job](../.github/workflows/test-core.yml) remains disabled |
+| `npm run test:core`                                                    | Requires an explicit isolated `--checkout`; see [CORE-TESTING.md](./CORE-TESTING.md). [Its CI job](../.github/workflows/test-core.yml) runs both Mongo backends against a pinned checkout |
 
 The recorded Meteor 3.3.2 benchmark runs use application **Node 22.18.0** and **MongoDB 7.0.16** from that release's dev bundle. The Node executable launching `bench/cli.mjs` is the separate harness/client generator process. `doctor` prints that harness Node version, the selected Meteor runtime, the application Node executable path and version, and the Mongo version. Actual run JSON records application `metadata.node`, `metadata.meteor`, `metadata.meteorRuntime`, `metadata.mongo`, resolved `metadata.packages`, hardware, and source/harness identities.
 
@@ -378,7 +384,7 @@ Results include the Git revision, a content fingerprint, dirty status, and recur
 
 [The workflow](../.github/workflows/bench.yml) runs protocol/reporting tests and smoke checks on both Meteor 3.3.2 and 3.6, including native/installed/composite cursor checks, reactive subscription-data, and paired library smoke checks for sorted-window, churn, and shared authors. A blocking regression step also exercises reactive plain-cursor, dependent-posts, one-to-many, deep-join, fanout, multiple-autoruns, infinite-scroll, and async-pressure. Meteor 3.6 also gets blocking method/publication/connection instrumentation smoke checks. The separate package-test workflow includes the client/server lifecycle regression tests.
 
-Every PR also runs the complete 39-check scenario/backend/browser matrix on both releases. Correctness failures block the job, and the HTML/Markdown/JSON reports remain available as artifacts. PRs get a one-pair advisory performance comparison against the base package; scheduled/manual runs add repeated revision measurements. Timing gates are opt-in. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and their local validation.
+Every PR runs all 39 scenario/backend/browser variants on both releases: 29 blocking reactive-publish/control variants and ten advisory, unmodified composite reference variants. Failures remain invalid in the HTML/Markdown/JSON artifacts. Use `all --adapters native,installed,reactive --browser` or `all --adapters composite` to reproduce either selection; the unfiltered command remains strict. PRs get a one-pair advisory performance comparison against the base package; scheduled/manual runs add repeated revision measurements. Timing gates are opt-in. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and their local validation.
 
 A separate scheduled/manual `comprehensive` job runs the full resource comparison and uploads `comprehensive-library-comparison`. Manual dispatch can select `full`, `quick`, or `disabled`. It has its own longer timeout and remains advisory because competitor correctness failures are retained. Hosted-runner measurements should be confirmed on a controlled machine before making small performance claims.
 

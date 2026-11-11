@@ -1,5 +1,10 @@
 # Initial benchmark findings
 
+> Follow-up: [CI repair and source-verification correction](./CI-REPAIR.md).
+> Earlier core runs did not verify which reactive-publish source was compiled;
+> their candidate/base claims are superseded. Historical performance measurements
+> use the separate benchmark builder and are not evidence for this later change.
+
 The observations below describe the original package source. The follow-up lifecycle fixes and their validation are recorded at the end of this document.
 
 These are correctness observations from implementing the suite, not a performance ranking or a completed root-cause investigation. Invalid workloads retain diagnostics and exit with code 2. Their timings must not enter library or revision comparisons.

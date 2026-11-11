@@ -1,5 +1,10 @@
 # Regression and test-contract audit — 2026-11-11
 
+> Follow-up: [CI repair and source-verification correction](./CI-REPAIR.md).
+> Earlier core runs did not verify which reactive-publish source was compiled;
+> their candidate/base claims are superseded. Historical performance measurements
+> use the separate benchmark builder and are not evidence for this later change.
+
 Audited `fix/reactive-publication-lifecycle` at `2b2a128` against its base,
 `c99252d` (`origin/master`, verified by fetching the remote). This follow-up adds
 the fixes described below.

@@ -1,5 +1,10 @@
 # Instrumentation-guided optimization — 2026-11-11
 
+> Follow-up: [CI repair and source-verification correction](./CI-REPAIR.md).
+> Earlier core runs did not verify which reactive-publish source was compiled;
+> their candidate/base claims are superseded. Historical performance measurements
+> use the separate benchmark builder and are not evidence for this later change.
+
 The cursor cache now returns an exact hit before scanning and parsing the other
 cache keys. Cache misses retain the existing selector/options eviction logic.
 Observer ordering, dependency invalidation, publication ownership and readiness

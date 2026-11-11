@@ -79,10 +79,7 @@ jobs:
         run: |
           npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter native --output bench/results/smoke/native.json
           npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter installed --output bench/results/smoke/installed.json
-          npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter composite --output bench/results/smoke/composite.json
           npm run bench -- run --meteor "$BENCH_METEOR_RELEASE" --adapter reactive --scenario subscription-data --output bench/results/smoke/data.json
-      - name: Equivalent library smoke comparisons
-        run: npm run bench:libraries -- --meteor "$BENCH_METEOR_RELEASE" --suite smoke --pairs 1 --output bench/results/libraries
       - name: Reactive publication regression checks
         run: |
           for scenario in plain-cursor personalized-selectors dependent-posts one-to-many deep-join fanout multiple-autoruns infinite-scroll async-pressure; do
@@ -106,8 +103,8 @@ jobs:
         env:
           BENCH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
-      - name: Complete scenario and browser checks
-        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --pairs 1 --profile smoke --browser --output bench/results/full
+      - name: Complete reactive-publish and control matrix
+        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --adapters native,installed,reactive --pairs 1 --profile smoke --browser --output bench/results/full
       - name: Job summary
         if: always()
         run: |
@@ -116,6 +113,51 @@ jobs:
         if: always()
         with:
           name: publication-benchmark-results-${{ matrix.meteor }}
+          path: bench/results/
+          retention-days: 30
+
+  reference:
+    name: Upstream composite reference (${{ matrix.meteor }})
+    needs: harness
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    # The upstream library is unmodified. Its failures remain failed in reports
+    # and are excluded from comparisons, but do not gate reactive-publish changes.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        meteor: ['3.3.2', '3.6']
+    env:
+      BENCH_METEOR_RELEASE: ${{ matrix.meteor }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.meteor
+          key: bench-meteor-${{ matrix.meteor }}-${{ runner.os }}-${{ hashFiles('bench/variants/**/*.versions') }}
+      - uses: meteorengineer/setup-meteor@v2
+        with:
+          meteor-release: ${{ matrix.meteor }}
+      - run: npm ci --prefix bench
+      - name: Equivalent library smoke comparisons
+        run: npm run bench:libraries -- --meteor "$BENCH_METEOR_RELEASE" --suite smoke --pairs 1 --output bench/results/libraries
+      - name: Complete unmodified upstream reference matrix
+        if: ${{ !cancelled() }}
+        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --adapters composite --pairs 1 --profile smoke --output bench/results/reference
+      - name: Reference summary
+        if: always()
+        run: |
+          echo '## Advisory upstream publish-composite reference' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Upstream failures stay invalid and cannot be used for performance rankings.' >> "$GITHUB_STEP_SUMMARY"
+          find bench/results -name '*.md' -type f -exec cat {} \; >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: upstream-composite-reference-${{ matrix.meteor }}
           path: bench/results/
           retention-days: 30
 

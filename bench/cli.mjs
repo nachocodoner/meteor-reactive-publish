@@ -32,6 +32,7 @@ import {
 const stringOptions = [
   'scenario',
   'adapter',
+  'adapters',
   'profile',
   'source',
   'meteor',
@@ -124,6 +125,8 @@ function runOptions({ allowFanoutRate = false } = {}) {
 
 async function main() {
   const action = positionals[0] || 'help';
+  if (values.adapters && action !== 'all')
+    throw new Error('--adapters is supported only by all');
   if (values.help || action === 'help') {
     console.log(`Reactive publish benchmarks
 
@@ -135,6 +138,7 @@ async function main() {
   npm run bench -- matrix --profile smoke
   npm run bench -- all --profile smoke --pairs 1 --output bench/results/full
   npm run bench -- all --profile standard --pairs 5 --browser
+  npm run bench -- all --adapters native,installed,reactive --browser
   npm run bench -- libraries --suite smoke --pairs 1
   npm run bench -- libraries --suite compatible --pairs 5
   npm run bench -- comprehensive --dry-run
@@ -391,6 +395,7 @@ Load uses at least --duration seconds AND the operation minimum; --latency-budge
       ...runOptions({ allowFanoutRate: true }),
       pairs: Number(values.pairs ?? 1),
       browser: !!values.browser,
+      adapters: values.adapters?.split(','),
     });
     console.log(
       `Full benchmark: ${report.status}\nHTML: ${path.join(directory, 'report.html')}\nMarkdown: ${path.join(directory, 'report.md')}\nJSON: ${path.join(directory, 'report.json')}`

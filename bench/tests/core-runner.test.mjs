@@ -56,6 +56,18 @@ if(process.env.FAKE_MUTATE_CORE)fs.appendFileSync('packages/sentinel.tests.js','
 const app=args[args.indexOf('--test-app-path')+1];
 fs.mkdirSync(path.join(app,'.meteor'),{recursive:true});
 fs.writeFileSync(path.join(app,'.meteor/versions'), args.includes('--extra-packages') && !process.env.FAKE_WRONG_GRAPH ? 'nachocodoner:reactive-publish@1.1.1\\n' : 'meteor@3.6.0\\n');
+if(args.includes('--extra-packages')) {
+ const search=process.env.METEOR_PACKAGE_DIRS.split(path.delimiter);
+ const selected=search.map(dir=>path.join(dir,'reactive-publish')).find(dir=>fs.existsSync(path.join(dir,'package.js')));
+ if(!selected) throw new Error('Selected source is not discoverable as a local package');
+ const files=Object.fromEntries(['package.js','main.js'].map(name=>{
+  const file=fs.realpathSync(path.join(selected,name));
+  return [file,process.env.FAKE_WRONG_SOURCE ? 'wrong' : require('node:crypto').createHash('sha1').update(fs.readFileSync(file)).digest('hex')];
+ }));
+ const dir=path.join(app,'.meteor/local/isopacks/nachocodoner_reactive-publish');
+ fs.mkdirSync(dir,{recursive:true});
+ fs.writeFileSync(path.join(dir,'isopack-buildinfo.json'),JSON.stringify({unibuildDependencies:{'os.json':{files}}}));
+}
 require('node:http').createServer((req,res)=>res.end('test app')).listen(Number(args[args.indexOf('--port')+1]),'127.0.0.1',()=>console.log('test-in-console listening'));
 `
     );
@@ -150,6 +162,7 @@ test('core runner loads the package through the CLI and propagates assertion fai
     assert.equal(summary.status, 'failed');
     assert.equal(summary.browserExitCode, 0);
     assert.equal(summary.tests.failed, 1);
+    assert.deepEqual(summary.verifiedSourceFiles, ['main.js', 'package.js']);
     assert.equal(
       args[args.indexOf('--extra-packages') + 1],
       'nachocodoner:reactive-publish'
@@ -182,5 +195,17 @@ test('core runner detects changed upstream assertions without resetting them', a
       await fs.readFile(path.join(core, 'packages/sentinel.tests.js'), 'utf8'),
       /unexpected mutation/
     );
+  });
+});
+
+test('core runner rejects another build of the same package version', async () => {
+  await fixture(async ({ invoke }) => {
+    const { execution, summary } = await invoke('package', {
+      FAKE_WRONG_SOURCE: '1',
+    });
+    assert.equal(execution.code, 1);
+    assert.equal(summary.status, 'incomplete');
+    assert.match(summary.error, /Compiled package source does not match/);
+    assert.equal(summary.tests, undefined);
   });
 });

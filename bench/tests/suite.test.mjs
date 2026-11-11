@@ -88,6 +88,48 @@ test('full suite enumerates every declared scenario/adapter and explicit diagnos
   assert.equal(suiteCases({ browser: true }).at(-1).enabled, true);
 });
 
+test('required and reference selections partition the full matrix without losing coverage', () => {
+  const cells = (options) =>
+    suiteCases({ browser: true, ...options })
+      .flatMap((entry) =>
+        entry.adapters.map((adapter) => entry.id + '/' + adapter)
+      )
+      .sort();
+  const required = cells({ adapters: ['native', 'installed', 'reactive'] });
+  const reference = cells({ adapters: ['composite'] });
+  assert.deepEqual([...required, ...reference].sort(), cells({}));
+  assert.ok(required.includes('backend/reactive'));
+  assert.ok(required.includes('browser/reactive'));
+  assert.throws(() => suiteCases({ adapters: [] }), /known adapter/);
+  assert.throws(() => suiteCases({ adapters: ['typo'] }), /known adapter/);
+});
+
+test('selected reference failures stay failed and cannot become ranked results', async () => {
+  const output = await fs.mkdtemp(path.join(os.tmpdir(), 'bench-reference-'));
+  try {
+    const { report } = await runSuite(
+      { profile, output, adapters: ['composite'] },
+      async (options) => {
+        assert.equal(options.adapter, 'composite');
+        if (options.scenario === 'dependent-posts')
+          throw new Error('Stale children');
+        return writeResult(options);
+      }
+    );
+    assert.equal(report.passed, false);
+    assert.equal(report.status, 'completed-with-failures');
+    assert.deepEqual(report.config.adapters, ['composite']);
+    assert.equal(
+      report.cases.find((entry) => entry.id === 'dependent-posts').adapters
+        .composite.status,
+      'invalid'
+    );
+    assert.equal(report.totals.compared, 0);
+  } finally {
+    await fs.rm(output, { recursive: true, force: true });
+  }
+});
+
 test('full execution alternates all adapters, applies offered rate only to fanout, and saves usable reports', async () => {
   const output = await fs.mkdtemp(path.join(os.tmpdir(), 'bench-suite-test-'));
   const calls = [];

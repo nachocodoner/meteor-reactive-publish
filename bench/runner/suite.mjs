@@ -8,8 +8,18 @@ import { runBenchmark } from './run.mjs';
 import { compareResults, validateResult } from '../reporting/results.mjs';
 import { suiteMarkdown, suiteHtml, suiteTotals } from '../reporting/suite.mjs';
 
-export function suiteCases({ browser = false } = {}) {
-  return [
+export function suiteCases({ browser = false, adapters } = {}) {
+  const supported = [
+    ...new Set(Object.values(scenarios).flatMap((entry) => entry.adapters)),
+  ];
+  if (
+    adapters &&
+    (!adapters.length || adapters.some((name) => !supported.includes(name)))
+  )
+    throw new Error(
+      'Select at least one known adapter: ' + supported.join(', ')
+    );
+  const cases = [
     ...Object.entries(scenarios).map(([id, scenario]) => ({
       id,
       scenario: id,
@@ -37,6 +47,13 @@ export function suiteCases({ browser = false } = {}) {
       skipReason: 'Enable with --browser; Chrome is required.',
     },
   ];
+  if (!adapters) return cases;
+  return cases
+    .map((entry) => ({
+      ...entry,
+      adapters: entry.adapters.filter((name) => adapters.includes(name)),
+    }))
+    .filter((entry) => entry.adapters.length);
 }
 
 function comparisonPairs(adapters) {
@@ -80,6 +97,7 @@ export async function runSuite(
       lifecycle: !!options.lifecycle,
       fanoutRate: options.rate || 0,
       browser: !!options.browser,
+      adapters: options.adapters || null,
       comprehensive: options.comprehensive || null,
     },
     cases: (options.caseDefinitions || suiteCases(options)).map((entry) => ({
