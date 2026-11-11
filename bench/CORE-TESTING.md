@@ -112,3 +112,22 @@ match the prior 39-check smoke run; this follow-up changes testing infrastructur
 and documentation only. The core workflow remains disabled: it still needs a
 pinned checkout/configuration update and an explicit policy for the pre-existing
 raw-message test failure, rather than silently rewriting its expectation.
+
+
+## Cache-optimization follow-up
+
+The [instrumentation-guided iteration](./INSTRUMENTED-OPTIMIZATION.md) reran both
+complete core configurations with the cache-hit optimization. Change streams
+again completed 2644 passed/1 failed; oplog completed 2550 passed/1 failed. Both
+inventories and complete failure details match the earlier checkpoint exactly.
+Core and package source-integrity checks passed. The final wire diagnostic passed
+1/1, with the original eight cursor events, no cursor removals, and the separate
+metadata messages. No upstream assertion was rewritten. Later edits affect only
+package-test fixtures; production files remain byte-identical to these core runs.
+
+Run the backend commands sequentially on a host. An initial concurrent launch
+selected overlapping HTTP/MongoDB port pairs and its browser opened MongoDB's
+HTTP diagnostic instead of Tinytest. It executed no cases and remains recorded
+as incomplete; the completed change-stream run followed oplog. Raw evidence and
+inventory comparisons are under ignored
+`bench/results/instrumented-optimization-2026-11-11/`.

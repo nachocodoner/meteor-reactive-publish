@@ -287,8 +287,17 @@ instrumentation coverage and resource cleanup. The report includes the calibrati
 limits, profiles, all compared metrics and remaining optimization opportunities.
 
 The package suite now passes 139/139 locally on both supported Meteor versions.
-One nested Mongo fixture needed four justified child-run expectation corrections,
-reproduced before and after optimization; 630 of the original 634 direct assertions
+Two Mongo fixtures needed seven justified count corrections, validated on
+pre-optimization code and the candidate; 627 of the original 634 direct assertions
 remain unchanged. Previous hosted CI failures and the current broad verification
 status are documented explicitly in the new report. The historical counts and
 verification statements above apply to their respective checkpoints.
+
+The expanded hosted matrix exposed intermittent publish-composite 1.9.0
+relationship-refresh failures on both releases, with reactive-publish absent from
+those apps. The comparisons remain invalid and the strict full-matrix jobs remain
+blocking. Exact expected document states are preserved. Locally, all 39 cases are
+covered on both releases (3.6 browser startup required an explicit Mac Chrome
+path). Both full-core runs again match the previous one-failure outcome exactly;
+the independent wire probe passes. See the follow-up report for raw attempts,
+source identities and the distinction between library and comparator results.

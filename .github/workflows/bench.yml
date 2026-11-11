@@ -95,8 +95,6 @@ jobs:
           npm run bench -- run --meteor 3.6 --lifecycle --scenario sorted-window --output bench/results/lifecycle-smoke/reactive.json
           npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-data --output bench/results/lifecycle-smoke/data.json
           npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-churn --output bench/results/lifecycle-smoke/churn.json
-      - name: Complete scenario and browser checks
-        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --pairs 1 --profile smoke --browser --output bench/results/full
       - name: Paired measurements
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:
@@ -108,6 +106,8 @@ jobs:
         env:
           BENCH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
+      - name: Complete scenario and browser checks
+        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --pairs 1 --profile smoke --browser --output bench/results/full
       - name: Job summary
         if: always()
         run: |
