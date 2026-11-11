@@ -95,11 +95,8 @@ jobs:
           npm run bench -- run --meteor 3.6 --lifecycle --scenario sorted-window --output bench/results/lifecycle-smoke/reactive.json
           npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-data --output bench/results/lifecycle-smoke/data.json
           npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-churn --output bench/results/lifecycle-smoke/churn.json
-      - name: Full scenario report
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-        # Composite relationship-refresh failures remain invalid; see bench/FINDINGS.md.
-        continue-on-error: true
-        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --pairs 1 --profile smoke --output bench/results/full
+      - name: Complete scenario and browser checks
+        run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --pairs 1 --profile smoke --browser --output bench/results/full
       - name: Paired measurements
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         env:

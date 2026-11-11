@@ -105,8 +105,10 @@ calls and values** from branch base `c99252d` remain unchanged. The four excepti
 are the child-run assumptions explained above; they are not performance-budget
 changes or allowances for incorrect published data.
 No core expectation is rewritten. PR benchmark checks now cover both Meteor
-3.3.2 and 3.6, including focused 3.6 instrumentation coverage; repeated timing
-experiments remain scheduled/manual and advisory.
+3.3.2 and 3.6, including focused 3.6 instrumentation coverage. The complete
+39-check scenario/browser matrix also runs on every PR and fails the job on a
+correctness error; its former manual/scheduled-only, nonblocking setting was a
+coverage gap. Repeated timing experiments remain scheduled/manual and advisory.
 
 ## Verification
 
@@ -115,11 +117,21 @@ At this code checkpoint, both complete package suites pass **139/139**, on Meteo
 pass. Lint reports zero errors and 18 existing warnings. The isolated benchmark-only
 installation also passes all four core-runner orchestration tests.
 
-The complete 39-check smoke matrix on each release and full package-enabled core
-runs on both reactivity configurations are in progress. Their final outcomes will
-be recorded here after completion. The previous core checkpoint's one raw DDP
-metadata-message failure remains an outstanding integration limitation, not a
-passing result. Hosted CI on the new source is also pending.
+Hosted CI on code checkpoint `3751037` passes all six active jobs: harness, lint,
+both package releases (139/139 each) and both benchmark smoke jobs, including
+focused 3.6 instrumentation. Full-core CI remains disabled; long lifecycle and
+comprehensive experiments are scheduled/manual, so their skipped PR jobs are
+not counted as passes. A follow-up makes the full scenario/browser matrix a
+required PR check too.
+
+The local 3.6 matrix passed all 38 DDP/backend checks. Its browser check initially
+could not start because the Mac Chrome executable was not supplied; the focused
+rerun with `--executable` passed. All 39 planned cases are covered across those
+attempts; the initial report remains 38/39, with the failed startup retained.
+The full 3.3.2 smoke matrix and change-stream core run are still in progress.
+Oplog core completed with 2550 passes and the same one raw DDP metadata-message
+failure, identical test inventory and identical failure details. Final outcomes
+will be recorded below after completion.
 
 The performance snapshot predates the nested-test correction. All twelve
 production package files match that measured snapshot byte for byte; the package
