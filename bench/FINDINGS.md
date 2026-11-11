@@ -247,3 +247,29 @@ or capacity claims. Raw evidence is under ignored
 
 Package CI now covers both releases. CI on the final committed source and safe
 execution of the inherited, disabled Meteor-core suite remain outstanding.
+
+
+**Full Meteor-core verification (2026-11-11).**
+
+The [full-core report](./CORE-TESTING.md) records four complete local package-suite
+runs on devel `0f95d70340`, including deprecated packages and stylus. The runtime
+and tests are identical to the current release-3.6 branch; their differences are
+documentation only. Without this package, change streams passed 2645/2645 and
+oplog passed 2551/2551. With package checkpoint `1a3dbd9`, the respective results
+were 2644 passed/1 failed and 2550 passed/1 failed, with identical case inventories.
+
+The sole failing case counts all DDP packets and sees the package's intentional
+_subscriptionData traffic. It fails identically against package base `c99252d` in
+both backend configurations. The old shell runner rewrote this assertion; the
+replacement leaves it intact and reports failure. An additional wire-level case
+passes on base and candidate, preserving the original eight cursor events with
+zero cursor removals and separately verifying two metadata additions/one removal.
+No new regression was identified in these configurations. Raw evidence, comparison
+JSON and graphs are under `bench/results/core-suite-2026-11-11/`. Core's existing
+Blaze late-assertion warnings and the upstream shell runner's post-summary teardown
+warnings remain recorded. CLI self-tests and E2E suites are outside these runs.
+
+The replacement runner checks source identities, uses the supported extra-package
+option, preserves failed/incomplete outcomes, and never restores checkout files.
+All 64 Node harness tests pass, including four new orchestration cases. Package
+and performance-harness source hashes match the previous validated smoke run.

@@ -295,7 +295,8 @@ Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executa
 If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
 avoids downloading additional browsers. Package CI checks a clean lockfile install
 and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The separate
-Meteor-core workflow remains disabled; its checkout-modifying shell runner needs a portability and cleanup review.
+Meteor-core workflow remains disabled. The [core verification guide](./bench/CORE-TESTING.md)
+describes the isolated runner and full-suite results.
 
 See the [benchmark guide](./bench/README.md) for isolated databases, paired
 comparisons, calibration, profiling, and interpretation of measurements.

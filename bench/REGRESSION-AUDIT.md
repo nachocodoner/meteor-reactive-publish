@@ -79,3 +79,14 @@ and cleanup work before use: it modifies the core checkout and its expectations,
 uses GNU-specific `sed -i`, and restores files with `git checkout`. Its CI job
 remains disabled. The package CI matrix now covers Meteor 3.3.2 and 3.6; it still
 needs to execute on the final committed source before merging.
+
+
+## Subsequent full-core verification
+
+The [core verification report](./CORE-TESTING.md) records the later full runs on
+pinned devel, whose runtime/tests match the current release-3.6 branch. Both
+package-free baselines passed. Both package-enabled runs completed with the same
+one pre-existing metadata-message assumption, reproduced on the package base;
+no upstream assertion was rewritten. The legacy runner has been replaced by an
+isolated CLI wrapper. The earlier remaining-verification paragraph above describes
+the state at the original audit checkpoint.
