@@ -229,3 +229,21 @@ A separate overhead diagnostic used five alternating on/off pairs of the candida
 A short offered-load diagnostic used 25 clients, 20 warmup writes and 301 measured writes scheduled at 50/s over six seconds. All writes and final states passed; server method p95 was 25 ms, client result p95 1,134.4 ms, and scheduled delivery p95 1,116.4 ms. Completion throughput including drain was 41.85 operations/s. Generator utilization was 9.0% and scheduling-lag p95 2.13 ms. This exposes substantial waiting outside the server's dispatch-to-result interval, consistent with queuing in the one-writer setup; it does not isolate every source of delay or establish sustained capacity. A dedicated complete-call/`updated` latency metric and controlled writer-concurrency experiment are useful next steps. Raw evidence: `bench/results/lifecycle/fanout.json`.
 
 Final validation passed all 60 Node harness tests and lint with zero errors (18 pre-existing unused-variable warnings). All 29 real executions passed: the native control; ten repeated library runs; twelve overhead runs including preflights; churn, subscription-data, basic observer mode, backend primitives, offered load, and the unchanged default Meteor 3.3.2 path. Churn recorded all 42 stops across initial subscriptions plus 20 cycles for two clients; subscription-data observed all 80 method calls. An additional negative check correctly rejected `--lifecycle --meteor 3.3.2` before starting an app. Workflow YAML and whitespace checks passed. The rendered focused comparison is `bench/results/lifecycle/report.html`; these artifacts are local ignored files. Existing package tests were not modified or rerun for this harness-only addition; their prior 3.3.2 pass and 3.6 failures remain the relevant release evidence.
+
+
+**Regression audit follow-up (2026-11-11).**
+
+The [branch/base regression audit](./REGRESSION-AUDIT.md) resolves the package-test
+failures recorded above. The follow-up changes test completion, observer waits,
+and the recent-posts fixture; production implementation and all 634 original
+direct assertion calls and expected values remain unchanged. The final package
+suite passed 137/137 on both Meteor 3.3.2 and Meteor 3.6, with no assertions arriving
+after test completion. All 60 Node harness tests and lint passed (zero errors,
+18 existing warnings). The complete smoke matrix passed all 39 real executions,
+including 37 DDP variants, backend primitives and the browser; all resource cleanup
+checks passed and no comparisons were blocked. This does not establish new timing
+or capacity claims. Raw evidence is under ignored
+`bench/results/regression-audit-2026-11-11/`.
+
+Package CI now covers both releases. CI on the final committed source and safe
+execution of the inherited, disabled Meteor-core suite remain outstanding.

@@ -32,12 +32,17 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        meteor: ['3.3.2', '3.6']
     env:
       PUPPETEER_SKIP_DOWNLOAD: 'true'
       PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: 'true'
       PUPPETEER_EXECUTABLE_PATH: /usr/bin/google-chrome
+      METEOR_RELEASE: ${{ matrix.meteor }}
 
-    name: meteor-reactive-publish package tests
+    name: Package tests (Meteor ${{ matrix.meteor }})
 
     steps:
       - name: Checkout repository
@@ -47,15 +52,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.meteor
-          key: package-meteor-3.3.2-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: package-meteor-${{ matrix.meteor }}-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Setup Meteor
         uses: meteorengineer/setup-meteor@v2
         with:
-          meteor-release: '3.3.2'
+          meteor-release: ${{ matrix.meteor }}
 
       - name: Install and Test Local Package
         working-directory: .
         run: |
           meteor npm ci
-          meteor npm run test:ci
+          meteor npm run test:ci -- --release "$METEOR_RELEASE"

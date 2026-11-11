@@ -69,6 +69,7 @@ Package.onTest(function (api) {
 
   // Add the test files for server and client
   api.addFiles([
+    'lib/testHelpers.js',
     'lib/ReactiveAsync/AsyncTracker.tests.js',
     'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
     'lib/ReactiveAsync/ComputedField.tests.js',
