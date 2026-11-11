@@ -1,79 +1,73 @@
 name: Meteor Publish Reactive (Test Core)
 
 on:
-  push:
-    branches:
-      - alpha
   pull_request:
+    paths:
+      - 'lib/**'
+      - 'main.js'
+      - 'package.js'
+      - 'scripts/test-core.*'
+      - 'bench/runner/**'
+      - 'bench/tests/core-runner.test.mjs'
+      - '.github/workflows/test-core.yml'
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    # Temporarily disabled - can be re-enabled by removing the 'if: false' condition
-    if: false
-    runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.head_ref }}-test-core
-      cancel-in-progress: true
-    timeout-minutes: 60
-
+  core:
+    name: Core tests (${{ matrix.reactivity }})
+    # The pinned core's uWebSockets binary requires GLIBC_2.38 or newer.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        reactivity: ['changeStreams,polling', 'oplog,polling']
     env:
       CI: 'true'
-      PUPPETEER_DOWNLOAD_PATH: /home/runner/.npm/chromium
-      TOOL_NODE_FLAGS: '--max-old-space-size=4096'
-      NODE_OPTIONS: '--max-old-space-size=4096'
-      SERVER_NODE_OPTIONS: '--max-old-space-size=4096'
-
-    name: meteor-core tests
-
+      PUPPETEER_SKIP_DOWNLOAD: 'true'
+      CHROME_BIN: /usr/bin/google-chrome
     steps:
-      - name: Update and install dependencies
-        run: sudo apt-get update && sudo apt-get install -y libnss3 g++-12 fonts-noto-color-emoji fonts-noto-cjk fonts-liberation
-
-      - name: Install Google Chrome Stable
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+          repository: meteor/meteor
+          ref: 0f95d70340a99c55e3547932a6d7e85db4f47996
+          path: bench/cache/meteor-core
+          submodules: recursive
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22.18.0
-
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+          node-version: '22.22.0'
+          cache: npm
+          cache-dependency-path: bench/package-lock.json
+      - uses: actions/cache@v4
         with:
           path: |
-            ~/.npm
             ~/.meteor
-            meteor-core/.meteor
-            meteor-core/.babel-cache
-            meteor-core/dev_bundle
-            /home/runner/.npm/chromium
-          key: ${{ runner.os }}-node-meteor-${{ hashFiles('**/package-lock.json', 'meteor-core/meteor') }}
-          restore-keys: |
-            ${{ runner.os }}-node-meteor-
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run Core Tests
-        run: npm run test:core
-
-      - name: Save cache
+            bench/cache/meteor-core/dev_bundle
+          key: core-ubuntu24-${{ runner.arch }}-0f95d70340-26.13.0.1
+      - run: npm ci --prefix bench
+      - name: Verify browser availability
+        run: test -x "$CHROME_BIN"
+      - name: Unmodified core baseline
+        env:
+          CORE_REACTIVITY: ${{ matrix.reactivity }}
+        run: npm run test:core -- --checkout bench/cache/meteor-core --mode baseline --reactivity "$CORE_REACTIVITY" --output bench/results/core/baseline
+      - name: Core with verified local package
+        env:
+          CORE_REACTIVITY: ${{ matrix.reactivity }}
+        run: npm run test:core -- --checkout bench/cache/meteor-core --mode package --reactivity "$CORE_REACTIVITY" --output bench/results/core/package
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/cache/save@v4
         with:
-          path: |
-            ~/.npm
-            ~/.meteor
-            meteor-core/.meteor
-            meteor-core/.babel-cache
-            meteor-core/dev_bundle
-            /home/runner/.npm/chromium
-          key: ${{ runner.os }}-node-meteor-${{ hashFiles('**/package-lock.json', 'meteor-core/meteor') }}
+          name: core-results-${{ matrix.reactivity }}
+          path: bench/results/core/
+          retention-days: 30

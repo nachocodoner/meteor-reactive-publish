@@ -1,0 +1,7 @@
+{
+  "meteor": "3.3.2",
+  "composite": "1.9.0",
+  "transport": "sockjs-websocket",
+  "mongo": { "source": "meteor-dev-bundle", "replicaSet": "bench" },
+  "performanceRevision": "b72b47dda3dc1f0c8ba81c9809526334d764b3cc"
+}

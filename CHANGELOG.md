@@ -4,6 +4,16 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
+## Unreleased
+
+- Track current computation dependencies directly instead of accumulating invalidation and stop callbacks on repeated reads. Release obsolete dependencies on rerun and reject dependency reads after stop, including reads after an await.
+- Reuse observers for unchanged cursors returned by publication autoruns. Retire replaced cursors, preserve each subscriber's ownership, and reconcile membership after awaited query changes.
+- Add regressions for long-lived computations, async dependency cleanup, observer reuse, and events arriving while a query changes.
+- Repair clean dependency installs, pin the package-test runtime, and run lint in CI. Prepare released Meteor runtimes before resolving their Node/Mongo executables.
+- Add an equivalent personalized-selector benchmark with separate per-client data validation. Keep performance checks advisory and use substantial repeated workloads for scheduled A/A calibration.
+
+---
+
 ## [1.1.1]
 
 ### Fixes

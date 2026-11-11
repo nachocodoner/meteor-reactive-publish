@@ -274,6 +274,35 @@ This package extends Meteor's core types to add reactive publishing capabilities
 - The `Meteor.publishReactive` function
 - `AsyncTracker` and `ReactiveVarAsync` with full generic type support
 
+## Development
+
+Use Node 22.12 or newer and install Meteor. From this repository:
+
+```sh
+npm ci
+npm run lint
+npm run test:ci
+npm run bench:setup
+npm run bench:test
+npm run bench -- doctor
+npm run bench:smoke
+```
+
+`test:ci` tests this checkout explicitly and defaults to the release in
+`bench/config/runtime-lock.json`. Use `npm run test:ci -- --release 3.5.2`
+to test another release. It uses Puppeteer's downloaded Chrome or an installed
+Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executable.
+If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
+avoids downloading additional browsers. Package CI checks a clean lockfile install
+and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The separate
+Meteor-core workflow remains disabled. The [core verification guide](./bench/CORE-TESTING.md)
+describes the isolated runner and full-suite results.
+
+See the [benchmark guide](./bench/README.md) for isolated databases, paired
+comparisons, calibration, profiling, and interpretation of measurements.
+The [regression audit](./bench/REGRESSION-AUDIT.md) records the branch/base test
+comparison, test synchronization fixes, and remaining verification.
+
 ## Roadmap
 
 - **Stability** ✅
@@ -285,6 +314,8 @@ This package extends Meteor's core types to add reactive publishing capabilities
     - Support for publishing derived data reactively
 
 - **Performance**
+    - [Run the repository benchmark suite](./bench/README.md) for DDP workloads, library comparisons, and regression reports
+    - Use `npm run bench:comprehensive` for repeated CPU, memory, event-loop, GC, load, retention, and MongoDB comparisons with publish-composite
     - [Run benchmarks](https://github.com/meteor/performance) to identify performance improvement opportunities
     - Compare results with [`reywood:publish-composite`](https://github.com/Meteor-Community-Packages/meteor-publish-composite) to ensure equal or better behavior
 
