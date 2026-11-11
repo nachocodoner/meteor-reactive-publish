@@ -163,6 +163,8 @@ test('core runner loads the package through the CLI and propagates assertion fai
     assert.equal(summary.browserExitCode, 0);
     assert.equal(summary.tests.failed, 1);
     assert.deepEqual(summary.verifiedSourceFiles, ['main.js', 'package.js']);
+    assert.ok(!summary.packageDirectory.includes('results-package'));
+    await assert.rejects(fs.stat(summary.packageDirectory), { code: 'ENOENT' });
     assert.equal(
       args[args.indexOf('--extra-packages') + 1],
       'nachocodoner:reactive-publish'

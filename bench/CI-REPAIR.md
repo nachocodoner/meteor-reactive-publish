@@ -43,6 +43,13 @@ The full core workflow is enabled on both `changeStreams,polling` and
 Each job runs a package-free baseline then the source-verified local package.
 Core assertions and dependencies are unmodified.
 
+The first hosted baseline failed during startup on Ubuntu 22.04: the pinned core's
+uWebSockets binary requires `GLIBC_2.38`. Core jobs now use Ubuntu 24.04 with a
+separate cache key. The benchmark/package jobs retain their released runtimes.
+The source-discovery link also lives in a temporary directory outside artifacts
+and is removed after cleanup, preventing artifact collection from following a
+link back through the repository. The runner regression checks that cleanup too.
+
 ## Native cursor behavior
 
 The first full run with verified local source exposed another core failure:
@@ -89,8 +96,10 @@ full matrix without omissions, and reference failures cannot become valid runs.
 
 ## Validation
 
-Before submission, the final source passed all 141 package tests and all 29
-required benchmark variants on Meteor 3.3.2, including backend and browser checks.
+The final package source passes all 141 package tests and all 29 required
+benchmark variants on both Meteor 3.3.2 and 3.6, including backend and browser
+checks. The local 3.6 matrix enables lifecycle instrumentation. Both hosted
+package jobs pass 141/141; the hosted 3.3.2 required matrix also passes 29/29.
 All 70 Node harness tests pass; lint reports zero errors and 18 existing warnings.
 The source-verified focused core read-preference run passes on server and client.
 The unchanged DDP message assertion also passes with verified local source.

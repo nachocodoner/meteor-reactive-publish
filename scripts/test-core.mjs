@@ -170,6 +170,7 @@ let app;
 let browser;
 let runtime;
 let sourceIdentity;
+let packageDirectory;
 let browserText = '';
 const deadline = Date.now() + timeout;
 const remaining = () => Math.max(1, deadline - Date.now());
@@ -192,8 +193,12 @@ try {
   result.source = sourceIdentity;
   // METEOR_PACKAGE_DIRS contains directories of packages, not package roots.
   // An isolated link prevents registry fallback and sibling-checkout ambiguity.
-  const packageDirectory = path.join(output, 'packages');
-  await fs.mkdir(packageDirectory);
+  // Keep the source link outside artifacts: following it from the results tree
+  // would recurse back through the repository and its results/cache directories.
+  packageDirectory = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'core-package-path-')
+  );
+  result.packageDirectory = packageDirectory;
   await fs.symlink(
     source,
     path.join(packageDirectory, 'reactive-publish'),
@@ -477,6 +482,8 @@ try {
 } finally {
   await stop(browser);
   await stop(app);
+  if (packageDirectory)
+    await fs.rm(packageDirectory, { recursive: true, force: true });
   if (runtime) {
     try {
       const after = await resolveMeteorRuntime({ meteorCli: runtime.cli });

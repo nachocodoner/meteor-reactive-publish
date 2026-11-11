@@ -24,7 +24,8 @@ concurrency:
 jobs:
   core:
     name: Core tests (${{ matrix.reactivity }})
-    runs-on: ubuntu-22.04
+    # The pinned core's uWebSockets binary requires GLIBC_2.38 or newer.
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
@@ -52,7 +53,7 @@ jobs:
           path: |
             ~/.meteor
             bench/cache/meteor-core/dev_bundle
-          key: core-${{ runner.os }}-0f95d70340-26.13.0.1
+          key: core-ubuntu24-${{ runner.arch }}-0f95d70340-26.13.0.1
       - run: npm ci --prefix bench
       - name: Verify browser availability
         run: test -x "$CHROME_BIN"
