@@ -24,6 +24,11 @@ meteor add nachocodoner:reactive-publish@1.1.1
 
 ## Usage
 
+The separate, unreleased cursor dependency prototype is documented in
+[Experimental cursor dependency modes](./EXPERIMENTAL-REACTIVITY.md), including
+opt-in examples, expected benefits and behavioral limitations. It is not part of
+the published package shown above.
+
 ### Reactive Composed Data Publish
 
 These examples show how to publish composed data reactively, letting clients receive updates when related fields change.
