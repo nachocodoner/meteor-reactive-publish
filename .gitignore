@@ -1,4 +1,6 @@
 node_modules/
+/node_modules
+/bench/node_modules
 dist/
 build/
 .meteor/local

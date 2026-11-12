@@ -44,6 +44,56 @@ function run(latency = 10) {
   };
 }
 
+test('cursor dependency experiments require explicit modes and identical reactive source', () => {
+  const baseline = run();
+  baseline.config.cursorDependencies = 'find';
+  const target = run();
+  target.config.cursorDependencies = 'reads';
+  assert.throws(() => compareResults([baseline], [target]), /Incompatible/);
+  assert.doesNotThrow(() =>
+    compareResults([baseline], [target], { mode: 'cursor-dependencies' })
+  );
+  const altered = structuredClone(target);
+  altered.metadata.source.hash = 'other';
+  assert.throws(
+    () =>
+      compareResults([baseline], [altered], { mode: 'cursor-dependencies' }),
+    /one reactive source/
+  );
+  const fixture = structuredClone(target);
+  fixture.metadata.fixture = 'different-fixture';
+  assert.throws(
+    () =>
+      compareResults([baseline], [fixture], { mode: 'cursor-dependencies' }),
+    /Incompatible/
+  );
+});
+
+test('library comparison allows a declared mode but rejects mixed modes within repetitions', () => {
+  const composite = run();
+  composite.config.adapter = 'composite';
+  composite.config.cursorDependencies = null;
+  const target = run();
+  target.config.cursorDependencies = 'reads';
+  assert.doesNotThrow(() =>
+    compareResults([composite], [target], { mode: 'library' })
+  );
+  const mixed = structuredClone(target);
+  mixed.config.cursorDependencies = 'find';
+  assert.throws(
+    () =>
+      compareResults([composite, composite], [target, mixed], {
+        mode: 'library',
+      }),
+    /identities within repeated runs/
+  );
+  assert.throws(
+    () =>
+      compareResults([composite], [target], { mode: 'cursor-dependencies' }),
+    /one reactive source/
+  );
+});
+
 test('checkout revisions and dirty-source identities cannot be mixed in library comparisons', () => {
   const baseline = run();
   baseline.config.adapter = 'composite';

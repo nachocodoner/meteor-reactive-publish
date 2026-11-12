@@ -56,6 +56,7 @@ const stringOptions = [
   'retention-cycles',
   'retention-every',
   'latency-budget',
+  'cursor-dependencies',
   ...Object.keys(profiles.smoke),
 ];
 const { values, positionals } = parseArgs({
@@ -89,6 +90,9 @@ async function runsFrom(file) {
 
 let selectedRuntime;
 function runOptions({ allowFanoutRate = false } = {}) {
+  const cursorDependencies = values['cursor-dependencies'] || 'find';
+  if (!['find', 'reads'].includes(cursorDependencies))
+    throw new Error('--cursor-dependencies must be find or reads');
   const seed = Number(values.seed ?? 1);
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 0xffffffff)
     throw new Error('seed must be an unsigned 32-bit integer');
@@ -120,6 +124,7 @@ function runOptions({ allowFanoutRate = false } = {}) {
     executable: values.executable,
     instrumentation: values.instrumentation || 'observers',
     lifecycle: !!values.lifecycle,
+    cursorDependencies,
   };
 }
 

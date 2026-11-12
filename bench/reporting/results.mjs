@@ -419,6 +419,10 @@ function registryFor(result) {
 
 export function compatibilityKey(result, mode = 'regression') {
   const { adapter, ...config } = result.config;
+  // A declared library implementation choice can differ between libraries.
+  // Within a side it must remain fixed; regression mode still rejects it.
+  if (mode === 'library' || mode === 'cursor-dependencies')
+    delete config.cursorDependencies;
   const { source, packages, ...metadata } = result.metadata;
   const stable = { ...metadata };
   delete stable.buildKey;
@@ -453,10 +457,25 @@ export function compareResults(
   targets,
   { mode = 'regression', gate = false } = {}
 ) {
-  if (!['regression', 'library'].includes(mode))
-    throw new Error('Comparison mode must be regression or library');
+  if (!['regression', 'library', 'cursor-dependencies'].includes(mode))
+    throw new Error(
+      'Comparison mode must be regression, library or cursor-dependencies'
+    );
   if (!baselines.length || baselines.length !== targets.length)
     throw new Error('Comparison requires equal nonzero counts of paired runs');
+  if (
+    mode === 'cursor-dependencies' &&
+    [...baselines, ...targets].some(
+      (run) =>
+        run.config.adapter !== 'reactive' ||
+        !['find', 'reads'].includes(run.config.cursorDependencies) ||
+        !run.metadata.source?.hash ||
+        run.metadata.source.hash !== baselines[0].metadata.source?.hash
+    )
+  )
+    throw new Error(
+      'Cursor-dependency comparisons require one reactive source and explicit modes'
+    );
   let reference;
   for (const run of [...baselines, ...targets]) {
     const errors = validateResult(run);
@@ -475,6 +494,7 @@ export function compareResults(
       canonical({
         adapter: run.config.adapter,
         packages: run.metadata.packages,
+        cursorDependencies: run.config.cursorDependencies ?? null,
         source: ['reactive', 'installed'].includes(run.config.adapter)
           ? run.metadata.source?.hash
           : null,

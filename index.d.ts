@@ -1,8 +1,19 @@
 import 'meteor/meteor';
-import { AsyncTrackerComputation } from 'meteor/nachocodoner:reactive-publish';
+import {
+  AsyncTrackerComputation,
+  CursorDependencyOptions,
+} from 'meteor/nachocodoner:reactive-publish';
 export {}; // keep it a module even if bundlers treeshake
 
 declare module 'meteor/nachocodoner:reactive-publish' {
+  /** Experimental, per-autorun behavior. Nested autoruns do not inherit it. */
+  interface CursorDependencyOptions {
+    /** "find" preserves existing behavior. "reads" tracks cursor reads, not
+     * creation; returned cursors still publish updates but do not rerun the
+     * function unless a read or another dependency changes. Local in-memory
+     * collection cursors retain their existing creation dependencies. */
+    cursorDependencies?: 'find' | 'reads';
+  }
   /**
    * AsyncTrackerDependency class for managing reactive dependencies
    * @template T The type of value this dependency is tracking
@@ -111,7 +122,7 @@ declare module 'meteor/nachocodoner:reactive-publish' {
      */
     static autorun<T = any>(
       f: (computation: AsyncTrackerComputation<T>) => T | Promise<T>,
-      options?: {
+      options?: CursorDependencyOptions & {
         onError?: (error: Error) => void;
         parent?: AsyncTrackerComputation<any>;
       }
@@ -175,6 +186,7 @@ declare module 'meteor/nachocodoner:reactive-publish' {
 
   // Export the main classes
   export {
+    CursorDependencyOptions,
     AsyncTracker,
     AsyncTrackerComputation,
     AsyncTrackerDependency,
@@ -196,7 +208,7 @@ declare module 'meteor/meteor' {
     function publishReactive<T = any, Args extends any[] = any[]>(
       name: string,
       publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
-      options?: object
+      options?: CursorDependencyOptions & Record<string, any>
     ): any;
 
     // Extend the Meteor.SubscriptionHandle interface to include data and setData
@@ -232,7 +244,8 @@ declare module 'meteor/meteor' {
      * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
      */
     autorun<T = any>(
-      runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>
+      runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>,
+      options?: CursorDependencyOptions
     ): Promise<AsyncTrackerComputation<T>>;
 
     /**

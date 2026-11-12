@@ -78,6 +78,7 @@ Package.onTest(function (api) {
     'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
     'lib/ReactivePublish.tests.js',
     'lib/ReactivePublishLifecycle.tests.js',
+    'lib/CursorDependencyModes.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
     'lib/ReactiveData/ReactiveData.tests.js',
     'lib/ReactiveData/ReactiveDataShowcase.tests.js',

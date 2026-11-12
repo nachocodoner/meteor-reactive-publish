@@ -87,6 +87,7 @@ export async function runLibraryComparison(options, execute = runBenchmark) {
       profile: options.profile,
       instrumentation: options.instrumentation || 'observers',
       lifecycle: !!options.lifecycle,
+      cursorDependencies: options.cursorDependencies || 'find',
       rate: options.rate || 0,
     },
     status: 'running',

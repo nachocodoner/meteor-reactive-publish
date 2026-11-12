@@ -88,6 +88,8 @@ export async function runBenchmark(options) {
         ? `cpu-profile-v1:${options.instrumentation || 'observers'}`
         : options.instrumentation || 'observers',
       lifecycle: !!options.lifecycle,
+      cursorDependencies:
+        adapter === 'reactive' ? options.cursorDependencies || 'find' : null,
     },
     metadata: { createdAt: new Date().toISOString() },
     metrics: {},
@@ -170,6 +172,7 @@ export async function runBenchmark(options) {
           instrumentation: options.instrumentation,
           retention: options.retention,
           lifecycle: !!options.lifecycle,
+          cursorDependencies: options.cursorDependencies || 'find',
         }),
         METEOR_SETTINGS: '{}',
         DDP_TRANSPORT: 'sockjs',

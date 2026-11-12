@@ -22,13 +22,17 @@ export function register(config, authorize) {
   Meteor.publish('bench', function (token, clientIndex) {
     authorize(token);
     const pub = this;
+    const autorun = (run) =>
+      pub.autorun(run, {
+        cursorDependencies: config.cursorDependencies || 'find',
+      });
     const scenario = config.scenario;
     if (scenario === 'personalized-selectors') {
       const selector = personalizedSelector(
         clientIndex,
         config.profile.clients
       );
-      pub.autorun(() => posts.find(selector, options('bench_posts')));
+      autorun(() => posts.find(selector, options('bench_posts')));
       return;
     }
     if (
@@ -39,7 +43,7 @@ export function register(config, authorize) {
         'fanout',
       ].includes(scenario)
     ) {
-      pub.autorun(() =>
+      autorun(() =>
         scenario === 'sorted-window'
           ? posts.find(
               {},
@@ -60,8 +64,8 @@ export function register(config, authorize) {
       })();
     }
     if (scenario === 'multiple-autoruns') {
-      pub.autorun(() => posts.find({ active: true }, options('bench_posts')));
-      pub.autorun(async () => {
+      autorun(() => posts.find({ active: true }, options('bench_posts')));
+      autorun(async () => {
         const parents = await posts
           .find({ active: true }, { fields: { _id: 1 } })
           .fetchAsync();
@@ -72,7 +76,7 @@ export function register(config, authorize) {
       });
       return;
     }
-    pub.autorun(async () => {
+    autorun(async () => {
       if (scenario === 'external-source') {
         await pub.setData('value', external.get());
         pub.ready();

@@ -95,6 +95,7 @@ export async function runSuite(
       profile: options.profile,
       instrumentation: options.instrumentation || 'observers',
       lifecycle: !!options.lifecycle,
+      cursorDependencies: options.cursorDependencies || 'find',
       fanoutRate: options.rate || 0,
       browser: !!options.browser,
       adapters: options.adapters || null,
