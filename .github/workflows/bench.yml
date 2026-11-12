@@ -24,7 +24,7 @@ on:
         type: string
       comprehensive_preset:
         description: Comprehensive library comparison (full is a longer experiment)
-        default: full
+        default: disabled
         type: choice
         options: [full, quick, disabled]
   schedule:
@@ -93,24 +93,24 @@ jobs:
           npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-data --output bench/results/lifecycle-smoke/data.json
           npm run bench -- run --meteor 3.6 --lifecycle --scenario subscription-churn --output bench/results/lifecycle-smoke/churn.json
       - name: Paired measurements
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        if: vars.PUBLISH_BENCHMARK_REPORTS == 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
         env:
           BENCH_SCENARIO: ${{ inputs.scenario || 'sorted-window' }}
           BENCH_PAIRS: ${{ inputs.pairs || '5' }}
         run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base HEAD --scenario "$BENCH_SCENARIO" --profile standard --warmup 100 --operations 1000 --pairs "$BENCH_PAIRS" --output bench/results/calibration
       - name: PR baseline comparison
-        if: github.event_name == 'pull_request'
+        if: vars.PUBLISH_BENCHMARK_REPORTS == 'true' && github.event_name == 'pull_request'
         env:
           BENCH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
       - name: Complete reactive-publish and control matrix
         run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --adapters native,installed,reactive --pairs 1 --profile smoke --browser --output bench/results/full
       - name: Job summary
-        if: always()
+        if: always() && vars.PUBLISH_BENCHMARK_REPORTS == 'true'
         run: |
           find bench/results -name '*.md' -type f -exec cat {} \; >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && vars.PUBLISH_BENCHMARK_REPORTS == 'true'
         with:
           name: publication-benchmark-results-${{ matrix.meteor }}
           path: bench/results/
@@ -119,6 +119,8 @@ jobs:
   reference:
     name: Upstream composite reference (${{ matrix.meteor }})
     needs: harness
+    # Comparative measurements stay local until publication is deliberately enabled.
+    if: vars.PUBLISH_BENCHMARK_REPORTS == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     # The upstream library is unmodified. Its failures remain failed in reports
@@ -163,7 +165,7 @@ jobs:
 
   lifecycle:
     needs: harness
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    if: vars.PUBLISH_BENCHMARK_REPORTS == 'true' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
@@ -198,7 +200,7 @@ jobs:
 
   comprehensive:
     needs: harness
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.comprehensive_preset != 'disabled')
+    if: vars.PUBLISH_BENCHMARK_REPORTS == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.comprehensive_preset != 'disabled'))
     runs-on: ubuntu-22.04
     timeout-minutes: 360
     steps:

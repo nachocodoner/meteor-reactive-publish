@@ -324,6 +324,7 @@ export const runtimeMetricRegistry = [
   cost('gc_ms_per_operation', 'ms/op', 0.01),
   cost('gc_max_pause_ms', 'ms', 1),
   cost('observers_created_per_operation', 'handles/op', 0.1),
+  cost('retained_stop_callbacks', 'callbacks', 1),
   cost('messages_per_operation', 'messages/op', 1),
 ];
 const databaseRegistry = [

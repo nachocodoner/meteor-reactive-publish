@@ -1,4 +1,5 @@
 import { MongoInternals } from 'meteor/mongo';
+import { Meteor } from 'meteor/meteor';
 import {
   monitorEventLoopDelay,
   performance,
@@ -112,19 +113,50 @@ export function createMetrics(asyncTracker, instrument = true) {
     }
   }, 50);
   timer.unref();
-  const resources = () => ({
-    observer_active: active,
-    computations_active: computations.size,
-    multiplexer_active: valuesOf(connection._observeMultiplexers).length,
-    sampled_mongo_handles: valuesOf(connection._observeMultiplexers).reduce(
-      (sum, mux) => sum + valuesOf(mux._handles).length,
+  const resources = () => {
+    // Stopped cursors can still be retained by subscription cleanup callbacks.
+    // Active observer counts alone cannot reveal this form of retention.
+    const subscriptionCallbacks = valuesOf(Meteor.server.sessions).reduce(
+      (total, session) =>
+        total +
+        [
+          ...valuesOf(session._namedSubs),
+          ...valuesOf(session._universalSubs),
+        ].reduce((sum, sub) => sum + (sub._stopCallbacks?.length || 0), 0),
       0
-    ),
-    cursor_cache_entries: [...computations].reduce(
-      (sum, comp) => sum + (comp._cursorCache?.size || 0),
+    );
+    const trackedCursorCallbacks = [...computations].reduce(
+      (total, comp) =>
+        total +
+        [...(comp._publicationCursorStops?.values() || [])].reduce(
+          (sum, owner) => sum + owner.callbacks.size,
+          0
+        ),
       0
-    ),
-  });
+    );
+    // Basic mode does not track computations, so their callbacks are unknown.
+    const cursorCallbacks =
+      asyncTracker && !instrument ? null : trackedCursorCallbacks;
+    return {
+      subscription_stop_callbacks: subscriptionCallbacks,
+      cursor_stop_callbacks: cursorCallbacks,
+      retained_stop_callbacks:
+        cursorCallbacks === null
+          ? null
+          : subscriptionCallbacks + cursorCallbacks,
+      observer_active: active,
+      computations_active: computations.size,
+      multiplexer_active: valuesOf(connection._observeMultiplexers).length,
+      sampled_mongo_handles: valuesOf(connection._observeMultiplexers).reduce(
+        (sum, mux) => sum + valuesOf(mux._handles).length,
+        0
+      ),
+      cursor_cache_entries: [...computations].reduce(
+        (sum, comp) => sum + (comp._cursorCache?.size || 0),
+        0
+      ),
+    };
+  };
   return {
     resources,
     reset() {

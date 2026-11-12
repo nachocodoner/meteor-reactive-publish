@@ -66,6 +66,7 @@ Package.onTest(function (api) {
 
   // Add the test files for server
   api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+  api.addFiles(['lib/ReactivePublishServer.tests.js'], ['server']);
 
   // Add the test files for server and client
   api.addFiles([

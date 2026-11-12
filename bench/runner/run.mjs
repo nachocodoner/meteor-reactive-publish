@@ -43,6 +43,7 @@ const resourcesReleased = (end, baseline) =>
     'cursor_cache_entries',
     'sampled_mongo_handles',
     'multiplexer_active',
+    'retained_stop_callbacks',
   ].every((key) => end[key] <= baseline[key]);
 
 export async function runBenchmark(options) {

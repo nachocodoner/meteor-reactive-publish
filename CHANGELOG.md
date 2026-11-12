@@ -6,6 +6,10 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ## Unreleased
 
+- Exclude repository development dependencies and generated profiles from Meteor package source scanning, alongside the existing benchmark and script exclusions.
+
+- Release cleanup callbacks when publication autoruns replace returned cursors, so stopped observers and their data do not accumulate until unsubscribe. Preserve user subscription stop callbacks and clean up callbacks registered during interrupted async cursor setup.
+- Instrument retained cursor/subscription cleanup callbacks in benchmarks and add regressions for bounded callback retention and stop during cursor setup.
 - Track current computation dependencies directly instead of accumulating invalidation and stop callbacks on repeated reads. Release obsolete dependencies on rerun and reject dependency reads after stop, including reads after an await.
 - Reuse observers for unchanged cursors returned by publication autoruns. Retire replaced cursors, preserve each subscriber's ownership, and reconcile membership after awaited query changes.
 - Add regressions for long-lived computations, async dependency cleanup, observer reuse, and events arriving while a query changes.

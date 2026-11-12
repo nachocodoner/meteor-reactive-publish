@@ -1,5 +1,18 @@
 # Reactive publish benchmarks
 
+Keep unpublished investigations in ignored `bench/private/` and raw measurements
+in ignored `bench/results/`. Check for an existing run before launching another
+benchmark. `scripts/bench-guard.mjs` can wrap a command with resource and time
+limits; use a fresh `--output` directory followed by `-- <command>`.
+
+Publication of benchmark measurements is currently opt-in. The workflow keeps
+required package/control correctness checks enabled, but comparison jobs,
+performance summaries and benchmark artifacts require the repository variable
+`PUBLISH_BENCHMARK_REPORTS=true`. Local reports are not uploaded automatically.
+The CI coverage descriptions below apply to those optional comparison jobs when
+explicitly enabled. `.meteorignore` excludes the entire benchmark tree and
+development scripts from package source scanning.
+
 PR checks run every reactive-publish/native/installed variant and the browser
 check as blocking tests (29 variants). All ten unmodified publish-composite
 variants run separately as an advisory reference job; failures stay invalid and
@@ -53,7 +66,7 @@ Listeners run synchronously, so collection has a cost. Calibrate with repeated r
 
 This suite measures real Meteor publications over DDP without rendering a UI. It builds separate production apps for each library, starts a private Mongo replica set, validates client data, and writes JSON and Markdown reports. It also provides backend primitive measurements and an optional check of the actual Meteor browser client.
 
-Correctness failures exit nonzero and are excluded from performance comparisons. See [FINDINGS.md](./FINDINGS.md) for historical findings and [the instrumentation-guided optimization report](./INSTRUMENTED-OPTIMIZATION.md) for the latest measurements and verification boundaries.
+Correctness failures exit nonzero and are excluded from performance comparisons. See [FINDINGS.md](./FINDINGS.md) for historical findings and [the instrumentation-guided optimization report](./INSTRUMENTED-OPTIMIZATION.md) for previously recorded measurements and verification boundaries. New investigations remain local until explicitly selected for publication.
 
 Install the bench dependencies and run a small validated scenario from the repository root:
 

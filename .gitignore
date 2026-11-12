@@ -9,3 +9,9 @@ bench/cache/
 **/.meteor/local/
 *.cpuprofile
 *.heapsnapshot
+
+# Local investigations remain private until explicitly selected for publication.
+bench/private/
+bench/LIBRARY-COMPARISON.md
+bench/CURSOR-CLEANUP.md
+bench/MACHINE-SAFETY.md
