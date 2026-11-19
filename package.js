@@ -16,8 +16,18 @@ Package.onUse(function (api) {
     'minimongo',
     'tracker',
     'reactive-var',
-    'zodern:types@1.0.13',
   ]);
+
+  if (typeof api.types === 'function') {
+    api.types('index.native.d.ts');
+    // Apps using zodern can read these files from the same published isopack.
+    api.addAssets(
+      ['index.d.ts', 'reactive-publish.d.ts', 'package-types.json'],
+      'server'
+    );
+  } else {
+    api.use('zodern:types@1.0.13');
+  }
 
   // Export the AsyncTracker and ReactiveVarAsync
   api.export('AsyncTracker');

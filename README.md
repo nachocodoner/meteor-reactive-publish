@@ -32,7 +32,7 @@ The 1.2 beta includes all three publication options below.
 
 The 1.2 beta reuses observers for unchanged cursors and cleans up obsolete dependencies automatically. In a comparison with 1.1.1, the beta used **about 30% less Meteor process CPU per write** for a sorted publication that kept returning the same query. Both runs used default settings. [Default upgrade measurements](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
-Each option belongs to one autorun. `Meteor.publishReactive(name, fn, options)` runs `fn` in a single autorun with those settings. For a publication with several autoruns, pass options to each `this.autorun(fn, options)` call that needs them. [One publication with a count and a paginated list](#infinite-scrolling-and-counts)
+Each option belongs to one autorun. `Meteor.publishReactive(name, fn, options)` runs `fn` in a single autorun with those settings. With `Meteor.publish`, each `this.autorun(fn, options)` can choose different settings. [Ticket dashboard with three autoruns](#multiple-autoruns)
 
 | Your publication | Option | Expected benefit |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ Each option belongs to one autorun. `Meteor.publishReactive(name, fn, options)` 
 | Reads parent documents and returns their children | `cursorDependencies: 'onRead'` | Deliver child edits directly. A join with a mix of parent and child writes ran **50% fewer times**. [Join example](./PUBLICATION-OPTIONS.md#return-a-live-cursor-from-a-join) |
 | Publishes a long-lived list of saved IDs | `returnedCursorStrategy: 'incremental'` | Reuse observers for IDs that stay selected. A saved-posts list used **about 61% less Meteor process CPU per list edit**, with more observers at startup. [Saved-list example and tradeoffs](./PUBLICATION-OPTIONS.md#publish-a-changing-list-of-ids) |
 
-Pass the option when registering your function with `Meteor.publishReactive` or `this.autorun`. This publication reads the subscriber's post IDs and returns their comments. Editing a comment updates the client directly. Adding or removing an owned post reruns the function.
+In the following join, the function reads posts to work out which comments to publish. With the default `'onFind'`, editing a comment can rerun the function and fetch the post IDs again. With `'onRead'`, the post lookup stays reactive and the returned comments cursor delivers comment edits directly.
 
 ```js
 async function commentsOnMyPosts() {
@@ -60,7 +60,7 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 });
 ```
 
-The parent query explicitly selects `_id` because the comments query uses only post IDs. If your function uses the title too, include it in the projection. The default `cursorDependencies: 'onFind'` also tracks cursors that the function only creates. Keep it when those changes trigger derived work. [Options, measured improvements and tradeoffs](./PUBLICATION-OPTIONS.md)
+The parent query selects `_id` because the comments query uses only post IDs. Adding or removing an owned post reruns the join. If the function also reads a post's title, include `title` in the projection. [Options, measured improvements and tradeoffs](./PUBLICATION-OPTIONS.md)
 
 ### Reactive Composed Data Publish
 
@@ -123,25 +123,51 @@ Meteor.publish('recent-posts', function () {
 
 #### Multiple autoruns
 
-The posts and addresses each have their own autorun. The posts autorun uses incremental observation because the user's list of saved post IDs changes frequently and contains string IDs. The addresses autorun uses the defaults.
+A ticket dashboard shows an open-ticket count, recent activity and the tickets the subscriber has pinned. Each part responds to different changes, so each has its own autorun.
 
 ```javascript
-Meteor.publish('users-posts-and-addresses', function (userId) {
-  this.autorun(async () => {
-    const user = await Users.findOneAsync(userId, {
-      fields: { posts: 1 },
-    });
-    return Posts.find({ _id: { $in: user?.posts || [] } });
-  }, { returnedCursorStrategy: 'incremental' });
+Meteor.publish('myTicketDashboard', function () {
+  const assigneeId = this.userId;
+  if (!assigneeId) return this.ready();
 
   this.autorun(async () => {
-    const user = await Users.findOneAsync(userId, {
-      fields: { addresses: 1 },
+    const count = await Tickets.find({ assigneeId, open: true }).countAsync();
+    await this.setData('openCount', count);
+  }, { countDependencies: 'membership' });
+
+  this.autorun(async () => {
+    const limit = (await this.data('moreActivity')) === true ? 20 : 5;
+    return Activity.find({ userId: assigneeId }, {
+      fields: { message: 1, createdAt: 1 },
+      sort: { createdAt: -1 },
+      limit,
     });
-    return Addresses.find({ _id: { $in: user?.addresses || [] } });
+  }, { cursorDependencies: 'onRead' });
+
+  this.autorun(async () => {
+    const [user] = await Meteor.users.find(
+      { _id: assigneeId },
+      { fields: { pinnedTicketIds: 1 } }
+    ).fetchAsync();
+    return Tickets.find(
+      { assigneeId, _id: { $in: user?.pinnedTicketIds || [] } },
+      { fields: { title: 1, open: 1 } }
+    );
+  }, {
+    cursorDependencies: 'onRead',
+    returnedCursorStrategy: 'incremental',
   });
 });
 ```
+
+| What changes | What the subscriber sees | Which autorun runs again |
+| --- | --- | --- |
+| Edit a pinned ticket's title | The title updates through the returned `Tickets` cursor. | None. The count still matches the same IDs, and the pinned list only reads the user's `pinnedTicketIds`. |
+| Close an open, pinned ticket | The badge decreases and the pinned ticket shows as closed. | Only the count. The cursor delivers the new `open` field. |
+| Call `sub.setData('moreActivity', true)` | The activity window expands. | Only the activity autorun reads this setting. |
+| Pin another assigned ticket | The ticket joins the list. | Only the pinned-ticket autorun. It reads the new IDs and reuses observers for groups of IDs that stay selected. |
+
+The last autorun combines two options because it handles two kinds of writes. `'onRead'` saves a user lookup when someone edits a ticket title. `'incremental'` saves observer setup when the list of pinned string IDs changes frequently. The sorted activity window uses the standard observer. [When incremental observation pays off](./PUBLICATION-OPTIONS.md#publish-a-changing-list-of-ids)
 
 ### Reactive Derived Data Publish
 
@@ -296,25 +322,25 @@ export default function AuthorStats() {
 
 ## TypeScript Support
 
-This package includes TypeScript definitions for all its APIs. To enable type checking:
+The 1.2 beta ships types for the package exports, `Meteor.publishReactive`, publication and subscription data, and the options on each `this.autorun`. For example, you can give a shared option a name and have TypeScript check its value where you define it.
 
-1. Make sure your app has [zodern:types](https://github.com/zodern/meteor-types) installed:
+```ts
+import type { PublicationAutorunOptions } from 'meteor/nachocodoner:reactive-publish';
 
-```bash
-meteor add zodern:types
+const openTicketCountOptions = {
+  countDependencies: 'membership',
+} satisfies PublicationAutorunOptions;
 ```
 
-2. Import the package using the Meteor import syntax:
+**Meteor 3.6 and later.** In an app configured for native Meteor types, run the following after adding the package or updating it. This regenerates the declarations for your editor and type checker.
 
-```typescript
-import { AsyncTracker, ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
+```sh
+meteor types
 ```
 
-This package extends Meteor's core types to add reactive publishing capabilities. The type definitions include:
+If you are switching an existing app to native types, include `./.meteor/types/packages.d.ts` in your app's `tsconfig.json` and map `meteor/*` to `./.meteor/types/packages/*`. Keep the app's source files in the TypeScript project. Meteor skips native generation when the app lists `zodern:types` directly. [Meteor's provider setup and migration guide](https://docs.meteor.com/cli/using-core-types)
 
-- Extensions to `Meteor.publish` context with the `autorun`, `data` and `setData` methods
-- The `Meteor.publishReactive` function
-- `AsyncTracker` and `ReactiveVarAsync` with full generic type support
+**Earlier Meteor 3 releases.** Use `meteor add zodern:types` in an app that needs the legacy declarations. Apps already using that provider can keep their existing configuration and package imports. [Legacy provider setup](https://github.com/zodern/meteor-types)
 
 ## Development
 
@@ -324,6 +350,7 @@ Use Node 22.12 or newer and install Meteor. From this repository:
 npm ci
 npm run lint
 npm run test:ci
+npm run test:types
 npm run bench:setup
 npm run bench:test
 npm run bench -- doctor
@@ -336,8 +363,10 @@ to test another release. It uses Puppeteer's downloaded Chrome or an installed
 Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executable.
 If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
 avoids downloading additional browsers. Package CI checks a clean lockfile install
-and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The Meteor-core
-suite runs on manual dispatch. See the [core verification guide](./bench/CORE-TESTING.md).
+and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The `test:types`
+check generates the declarations in a Meteor 3.6 app and type-checks its package imports.
+Use Meteor 3.6 or later to publish a release with native declaration metadata.
+The Meteor-core suite runs on manual dispatch. See the [core verification guide](./bench/CORE-TESTING.md).
 
 See the [benchmark guide](./bench/README.md) for isolated databases, paired
 comparisons, calibration, profiling, and interpretation of measurements.

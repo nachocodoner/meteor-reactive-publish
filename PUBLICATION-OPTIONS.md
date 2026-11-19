@@ -1,8 +1,6 @@
 # Choosing publication options
 
-Start with the default settings. Creating a reactive server Mongo cursor inside an autorun establishes a dependency, and the publication observes every cursor it returns. An unchanged returned cursor can reuse its observer across runs.
-
-Choose the option that matches the work your publication repeats.
+When an autorun returns a Mongo cursor, Meteor observes that query to keep the client up to date. By default, calling `find()` inside the autorun also makes the function rerun when matching data changes. In a join, editing a comment can therefore send the new text to the client and make the function fetch the parent posts again.
 
 | What the publication does | Set this on the autorun | Work it can skip |
 | --- | --- | --- |
@@ -10,7 +8,7 @@ Choose the option that matches the work your publication repeats.
 | Reads parent documents to select a live child cursor | `cursorDependencies: 'onRead'` | Rerunning the parent query when a child changes. |
 | Returns a long-lived cursor over a changing list of IDs | `returnedCursorStrategy: 'incremental'` | Rebuilding observers for IDs that stay on the list. |
 
-`Meteor.publishReactive(name, fn, options)` creates one implicit autorun for `fn`. Inside a regular `Meteor.publish`, each `this.autorun(fn, options)` chooses its own settings. For example, one autorun can track count membership while another uses `'onRead'` for a paginated list. A sibling or nested autorun that omits its options uses the defaults. [Count and list in one subscription](./README.md#infinite-scrolling-and-counts)
+`Meteor.publishReactive(name, fn, options)` creates one implicit autorun for `fn`. Inside a regular `Meteor.publish`, pass options to each `this.autorun(fn, options)` that needs them. Sibling and nested autoruns that omit their options use the defaults. The ticket dashboard uses different settings for its count, its activity window and its pinned tickets. [Walk through three autoruns in one subscription](./README.md#multiple-autoruns)
 
 Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`. The returned cursor strategy applies to publication autoruns.
 
@@ -43,7 +41,7 @@ The default `countDependencies: 'documents'` tracks document changes. You can al
 
 ## Return a live cursor from a join
 
-Suppose a publication reads the IDs of the subscriber's posts and returns their comments. The function needs to run when a post starts or stops matching. A comment edit can reach the client through the returned cursor's observer.
+Suppose a publication reads the IDs of the subscriber's posts and returns their comments. Adding a post makes the function run again to include that post's ID in the comments query. Editing the text of an existing comment leaves the post IDs alone.
 
 ```js
 async function commentsOnMyPosts() {
@@ -63,7 +61,9 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 });
 ```
 
-With `'onRead'`, supported server Mongo reads such as `fetchAsync()`, `mapAsync()`, `forEachAsync()`, `countAsync()` and `fetch()` establish dependencies. A cursor that the function only returns still publishes live updates. If the function also reads comments to compute a value, relevant comment edits rerun it. Local collections keep their usual creation-time dependencies. Subscription data and reactive variables still invalidate their readers.
+Here, `fetchAsync()` reads the posts. `return Comments.find(...)` hands Meteor a live query to publish. With `'onRead'`, an edit to a comment's body travels through that cursor without fetching the posts again. If the function also fetches the comments to calculate a summary, it reads their contents and relevant edits still rerun the function.
+
+Supported server Mongo reads include `fetchAsync()`, `mapAsync()`, `forEachAsync()`, `countAsync()` and `fetch()`. Local collections keep their usual creation-time dependencies. Reading subscription data or a reactive variable also establishes a dependency.
 
 **Choosing parent fields.** The example explicitly selects `_id` because the child selector uses only the parent IDs. If the function also reads a post's title, include `title` in the projection. Use the default `'onFind'` when creating a cursor is itself the signal to recompute a raw aggregation or run another side effect.
 
@@ -71,7 +71,7 @@ With `'onRead'`, supported server Mongo reads such as `fetchAsync()`, `mapAsync(
 
 ## Publish a changing list of IDs
 
-For a list of saved posts, adding a single ID can otherwise replace the observer for the whole query. Incremental observation keeps work for groups of IDs that remain selected.
+Suppose a reader adds one post to a saved list. The function has to run again because the IDs it read have changed. Standard observation already reuses the observer when the returned query stays the same. Changing the list produces a new `$in` query and replaces that observer. Incremental observation watches groups of IDs separately, so groups whose IDs stay the same can keep their observers.
 
 ```js
 Meteor.publishReactive('mySavedPosts', async function () {
@@ -88,7 +88,7 @@ Meteor.publishReactive('mySavedPosts', async function () {
 }, { returnedCursorStrategy: 'incremental' });
 ```
 
-This option only changes how returned cursors are observed. It works with the default dependency settings. A join that both reads parents and returns a frequently changing child ID list can also set `cursorDependencies: 'onRead'` to skip reruns on edits to returned children.
+The example uses `'incremental'` on its own. Editing a saved post's title can still rerun the function under the default `'onFind'`. If those edits are common, add `cursorDependencies: 'onRead'` to the same options object. Title edits then go straight to the client, while edits to `savedPostIds` still rerun the function and benefit from observer reuse. [Example using both options](./README.md#multiple-autoruns)
 
 Incremental observation supports native server Mongo queries with one top-level `$in` containing up to 256 distinct string IDs. Additional top-level filters can be scalar equality conditions, and simple field projections are supported. Other queries use standard observation, including sorted or paginated windows, nested selectors, ObjectID lists, transforms and custom cursors. Keep the default `'standard'` strategy for short-lived subscriptions or lists that rarely change.
 

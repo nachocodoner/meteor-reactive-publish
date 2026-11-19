@@ -65,3 +65,7 @@ jobs:
         run: |
           meteor npm ci
           meteor npm run test:ci -- --release "$METEOR_RELEASE"
+
+      - name: Check native package types in a consumer app
+        if: matrix.meteor == '3.6'
+        run: meteor npm run test:types

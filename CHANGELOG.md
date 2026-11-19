@@ -18,6 +18,10 @@ Unchanged cursors reuse their observers. Replaced cursors release their observer
 - Use `cursorDependencies: 'onRead'` for a join that reads parent documents and returns a live child cursor. Child edits reach the client through the cursor. The default `'onFind'` also tracks cursor creation.
 - Use `returnedCursorStrategy: 'incremental'` for a long-lived publication over a changing list of IDs. Eligible queries reuse observers for IDs that remain selected. The default is `'standard'`. [Examples and measured tradeoffs](./PUBLICATION-OPTIONS.md)
 
+### TypeScript
+
+Meteor 3.6 apps can load this package's declarations with `meteor types`. This includes autocomplete for all three autorun options and types for the data a client reads from its subscription. Earlier Meteor 3 apps can continue using `zodern:types`. [TypeScript setup](./README.md#typescript-support)
+
 ### Benchmarks and testing
 
 The repository includes a reproducible benchmark for reactive publications. It checks what each DDP client receives and whether resources are released after unsubscribe. Reports cover Meteor process CPU, delivery latency, traffic and observer activity. Ordinary package tests run on Meteor 3.3.2 and 3.6 in pull requests. [Benchmark commands](./bench/README.md)
