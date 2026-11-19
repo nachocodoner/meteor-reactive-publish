@@ -35,9 +35,17 @@ Meteor.publish('myFeed', function () {
 
 Editing a post's title reaches the client through the returned cursor. With `'onRead'`, the first autorun skips looking up the user again. Marking a notification as read changes which IDs match, so the second autorun updates the count. Editing the notification's text leaves the count alone.
 
-Each sibling or nested autorun that omits its options uses the defaults. Nesting is useful when a child needs a parent's lookup result and also reacts to a separate input, such as a page size. Multiple autoruns can query the same collection, and only one can return a cursor for that collection. [Feed with a nested autorun](./README.md#nest-an-autorun-inside-a-lookup) · [Dashboard with three independent autoruns](#a-ticket-dashboard-with-three-autoruns)
+Each sibling autorun that omits its options uses the defaults. Multiple autoruns can query the same collection, and only one can return a cursor for that collection. [Dashboard with three independent autoruns](#a-ticket-dashboard-with-three-autoruns)
 
 Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`. The returned cursor strategy applies to publication autoruns.
+
+### Options for a nested autorun
+
+Set an option on the `this.autorun` that does the work. A child uses the defaults when you omit its options, even if its parent has opted in. The same child can reuse its cursor and observer across reruns when its query stays the same. When the parent reruns, it stops that child, and any replacement starts with a fresh cache.
+
+In the paged feed, the child uses `cursorDependencies: 'onRead'` so a title edit reaches the client through the returned cursor. The feed uses standard observation for its sorted, limited query. [Complete nested feed](./README.md#nest-an-autorun-inside-a-lookup)
+
+A child that counts unread notifications can use `countDependencies: 'membership'` to skip recounts on text edits. A child that returns an eligible `$in` query can use `returnedCursorStrategy: 'incremental'` to keep observers for groups of IDs that remain selected when its list changes. [Count examples](#publish-a-count) · [Supported incremental queries](#publish-a-changing-list-of-ids)
 
 ## Publish a count
 
