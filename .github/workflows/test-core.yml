@@ -1,6 +1,22 @@
 name: Meteor Publish Reactive (Test Core)
 
 on:
+  pull_request:
+    paths:
+      - 'lib/**'
+      - 'main.js'
+      - 'package.js'
+      - 'package.json'
+      - '.meteorignore'
+      - '.versions'
+      - 'scripts/test-core.*'
+      - 'bench/runner/**'
+      - 'bench/config/runtime-lock.json'
+      - 'bench/package*.json'
+      - 'bench/tests/core-runner.test.mjs'
+      - '.github/workflows/test-core.yml'
+  push:
+    branches: [master]
   workflow_dispatch:
 
 permissions:

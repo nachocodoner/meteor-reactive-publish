@@ -15,6 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  harness:
+    name: Benchmark harness tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+          cache-dependency-path: bench/package-lock.json
+      - run: npm ci --prefix bench
+      - run: npm run bench:test
+
   lint:
     runs-on: ubuntu-22.04
     timeout-minutes: 10

@@ -338,11 +338,11 @@ npm run bench:smoke
 to test another release. It uses Puppeteer's downloaded Chrome or an installed
 Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executable.
 If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
-avoids downloading additional browsers. Package CI checks a clean lockfile install
-and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The `test:types`
+avoids downloading additional browsers. Every PR runs lint, the benchmark harness unit
+tests, and client/server package tests on Meteor 3.3.2 and 3.6. The `test:types`
 check generates the declarations in a Meteor 3.6 app and type-checks its package imports.
 Use Meteor 3.6 or later to publish a release with native declaration metadata.
-The Meteor-core suite runs on manual dispatch. See the [core verification guide](./bench/CORE-TESTING.md).
+Pull requests that change the package runtime, its build configuration or the core test runner also run Meteor's core package tests. Each Mongo backend runs once on unmodified core and once with this package loaded. The same checks run on pushes to `master` and can be started manually. [Core verification guide](./bench/CORE-TESTING.md)
 
 See the [benchmark guide](./bench/README.md) for isolated databases, paired
 comparisons, calibration, profiling, and interpretation of measurements.

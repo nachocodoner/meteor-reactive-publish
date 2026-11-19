@@ -60,8 +60,7 @@ client writes still upsert it, and stopping the subscription removes it. The
 original upstream eight-message assertion passes without rewriting or filtering
 core tests. The wire probe now requires zero metadata messages for plain cursors.
 
-The manual core workflow uses the pinned checkout below. Each Mongo backend runs the unmodified baseline followed by the
-verified local package. See [CI repair](./CI-REPAIR.md) for current results.
+The core workflow uses the pinned checkout below. It runs on PRs that change the package runtime, its build configuration or the core test runner, on pushes to `master`, and on manual dispatch. Each Mongo backend has a 90-minute job to run the unmodified baseline followed by the verified local package. The comparison covers Meteor's upstream package tests on the server and in Chrome. [Earlier verified results](./CI-REPAIR.md)
 
 ## Historical results (source selection was not verified)
 
