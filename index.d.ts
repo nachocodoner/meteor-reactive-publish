@@ -6,13 +6,15 @@ import {
 export {}; // keep it a module even if bundlers treeshake
 
 declare module 'meteor/nachocodoner:reactive-publish' {
-  /** Experimental, per-autorun behavior. Nested autoruns do not inherit it. */
+  /** Cursor dependencies for one autorun. Nested autoruns choose their own options. */
   interface CursorDependencyOptions {
-    /** In server Mongo autoruns, onFind (default) tracks cursor creation.
-     * onRead tracks supported cursor reads. Returned cursors still publish live updates. */
+    /** By default a server Mongo find() creates a dependency. Choose 'onRead'
+     * to track reads instead. Returned cursors still publish live updates. */
     cursorDependencies?: 'onFind' | 'onRead';
-    /** Experimental. With onRead, a simple unpaginated server count can track entries
-     * and exits only. Other reads keep their usual document dependencies. */
+    /** Choose 'membership' for countAsync() on plain server Mongo queries.
+     * Counts then track matching IDs entering or leaving the result. This option
+     * enables 'onRead' throughout this autorun and cannot be paired with 'onFind'.
+     * Explicit projections keep their own field dependencies. The default is 'documents'. */
     countDependencies?: 'documents' | 'membership';
   }
 
@@ -190,16 +192,6 @@ declare module 'meteor/nachocodoner:reactive-publish' {
      */
     toString(): string;
   }
-
-  // Export the main classes
-  export {
-    CursorDependencyOptions,
-    PublicationAutorunOptions,
-    AsyncTracker,
-    AsyncTrackerComputation,
-    AsyncTrackerDependency,
-    ReactiveVarAsync,
-  };
 }
 
 declare module 'meteor/meteor' {

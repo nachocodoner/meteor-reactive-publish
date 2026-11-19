@@ -49,6 +49,11 @@ const resourcesReleased = (end, baseline) =>
 export async function runBenchmark(options) {
   const { scenario, adapter, profile, seed = 1 } = options;
   validateScenario(scenario, adapter);
+  if (options.countDependencies !== undefined && scenario !== 'derived-count')
+    throw new Error('Count dependencies require the derived-count scenario');
+  const cursorDependencies =
+    options.cursorDependencies ??
+    (options.countDependencies === 'membership' ? 'onRead' : 'onFind');
   const feedOptions =
     scenario === 'filtered-comments'
       ? {
@@ -80,10 +85,9 @@ export async function runBenchmark(options) {
       profile,
       seed,
       scenarioVersion,
-      ...(scenario === 'derived-count' &&
-        options.cursorDependencies === 'onRead' && {
-          countDependencies: options.countDependencies ?? 'documents',
-        }),
+      ...(scenario === 'derived-count' && {
+        countDependencies: options.countDependencies ?? 'documents',
+      }),
       ...feedOptions,
       ...(options.mutations && { mutations: options.mutations }),
       level: options.level || 'ddp',
@@ -101,8 +105,7 @@ export async function runBenchmark(options) {
         ? `cpu-profile-v1:${options.instrumentation || 'observers'}`
         : options.instrumentation || 'observers',
       lifecycle: !!options.lifecycle,
-      cursorDependencies:
-        adapter === 'reactive' ? options.cursorDependencies || 'onFind' : null,
+      cursorDependencies: adapter === 'reactive' ? cursorDependencies : null,
       returnedCursorStrategy:
         adapter === 'reactive'
           ? options.returnedCursorStrategy || 'standard'
@@ -189,8 +192,11 @@ export async function runBenchmark(options) {
           instrumentation: options.instrumentation,
           retention: options.retention,
           lifecycle: !!options.lifecycle,
-          cursorDependencies: result.config.cursorDependencies,
-          countDependencies: result.config.countDependencies,
+          // Record effective modes above and exercise the exact caller options here.
+          cursorDependencies:
+            adapter === 'reactive' ? options.cursorDependencies : undefined,
+          countDependencies:
+            adapter === 'reactive' ? options.countDependencies : undefined,
           returnedCursorStrategy: result.config.returnedCursorStrategy,
           ...feedOptions,
         }),

@@ -83,6 +83,12 @@ test('count-dependency comparisons keep the field-edit workload and each side fi
     compareResults(left, right, { mode: 'count-dependencies' });
   assert.doesNotThrow(() => compare([baseline], [target]));
   assert.throws(() => compareResults([baseline], [target]), /Incompatible/);
+  const onFind = structuredClone(baseline);
+  onFind.config.cursorDependencies = 'onFind';
+  assert.throws(() => compare([onFind], [target]), /Incompatible/);
+  const legacy = structuredClone(onFind);
+  delete legacy.config.countDependencies;
+  assert.doesNotThrow(() => compareResults([onFind, legacy], [onFind, onFind]));
   assert.throws(
     () => compare([baseline, baseline], [target, baseline]),
     /identities within repeated runs/

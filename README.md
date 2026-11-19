@@ -18,19 +18,29 @@
 
 ## Installation
 
-For the stable release, run `meteor add nachocodoner:reactive-publish`. To select **1.2.0-beta.0** once it is published, run
+For the stable release, run `meteor add nachocodoner:reactive-publish`. To try the read-tracking and incremental cursor options in **1.2.0-beta.0** once it is published, run
 
 ``` bash
 meteor add nachocodoner:reactive-publish@=1.2.0-beta.0
 ```
 
+The reactive count option described below is available in this checkout for a later release and is pending publication.
+
 ## Usage
 
-### Performance in 1.2
+### Choosing an autorun option
 
-Existing publications gain observer reuse and earlier cleanup on upgrade. In a publication returning the two highest-scoring posts, upgrading from 1.1.1 to the beta with default settings used **29.7% less application CPU per write**. The client received updates **27.3% sooner at p95**. Both versions delivered the same documents and DDP traffic across five paired runs. [Default upgrade measurements](./EXPERIMENTAL-REACTIVITY.md#what-an-upgrade-gives-you-by-default)
+The 1.2 beta reuses observers for unchanged cursors and cleans up obsolete dependencies automatically. A sorted publication that kept returning the same query used **about 30% less Meteor process CPU per write** on upgrade from 1.1.1 with default settings. [Default upgrade measurements](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
-`cursorDependencies` and `returnedCursorStrategy` are the two opt-in publication settings introduced in the beta. Pass either setting to `Meteor.publishReactive` or `this.autorun` when registering your existing function. Here the function reads owned post IDs and returns their comments. With `'onRead'`, editing a comment updates the client directly, and adding or removing an owned post reruns the function.
+Choose an option for the publication that does the work. Each row can be enabled on its own.
+
+| Your publication | Option | Expected benefit |
+| --- | --- | --- |
+| Shows a badge or total from `countAsync()` | `countDependencies: 'membership'` | Skip recounts after field edits. When four in five writes left membership unchanged, the autorun ran **80% fewer times**. [Count example and CPU cost](./PUBLICATION-OPTIONS.md#publish-a-count) |
+| Reads parent documents and returns their children | `cursorDependencies: 'onRead'` | Deliver child edits directly. A join with a mix of parent and child writes ran **50% fewer times**. [Join example](./PUBLICATION-OPTIONS.md#return-a-live-cursor-from-a-join) |
+| Publishes a long-lived list of saved IDs | `returnedCursorStrategy: 'incremental'` | Reuse observers for IDs that stay selected. A saved-posts list used **about 61% less Meteor process CPU per list edit**, with more observers at startup. [Saved-list example and tradeoffs](./PUBLICATION-OPTIONS.md#publish-a-changing-list-of-ids) |
+
+Pass the option when registering your function with `Meteor.publishReactive` or `this.autorun`. This publication reads the subscriber's post IDs and returns their comments. Editing a comment updates the client directly. Adding or removing an owned post reruns the function.
 
 ```js
 async function commentsOnMyPosts() {
@@ -50,9 +60,7 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 });
 ```
 
-The default `'onFind'` also reruns for changes to a cursor that your function only creates. Keep it when those reruns drive derived work. In a mixed-write benchmark, `'onRead'` cut autorun executions by **50%** with identical client traffic. For long-lived saved-ID lists, `returnedCursorStrategy: 'incremental'` used **60.9% less application CPU per membership change** across five paired runs, at the cost of a slower initial subscription. Each option applies to one autorun. [Performance guide and measurements](./EXPERIMENTAL-REACTIVITY.md)
-
-The comments query above needs only the post IDs. Selecting `{ fields: { _id: 1 } }` on the parent query means a title edit leaves that input unchanged. If your function uses the title too, include it in the projection. [Parent projection example](./EXPERIMENTAL-REACTIVITY.md#read-only-the-parent-fields-that-affect-the-join)
+The parent query explicitly selects `_id` because the comments query uses only post IDs. If your function uses the title too, include it in the projection. The default `cursorDependencies: 'onFind'` also tracks cursors that the function only creates. Keep it when those changes trigger derived work. [Options, measured improvements and tradeoffs](./PUBLICATION-OPTIONS.md)
 
 ### Reactive Composed Data Publish
 
@@ -152,10 +160,10 @@ import { Mongo } from 'meteor/mongo';
 export const Posts = new Mongo.Collection('posts');
 
 Meteor.publish('posts.infiniteScroll', function () {
-  // Reactive total count
+  // An edit to a post title leaves this total unchanged.
   this.autorun(async () => {
     await this.setData('countAll', await Posts.find().countAsync());
-  });
+  }, { countDependencies: 'membership' });
 
   // Reactive window of posts, adjustable by client
   this.autorun(async () => {
@@ -165,6 +173,8 @@ Meteor.publish('posts.infiniteScroll', function () {
   });
 });
 ```
+
+Membership tracking enables read tracking for the count autorun. Inserts and deletions still update the total. The second autorun keeps its own defaults for the paginated list.
 
 Client (Tracker):
 ```javascript
@@ -219,13 +229,13 @@ export default function SubscriptionInfo({ userId }) {
 }
 ```
 
-A polling service may send a fresh settings object with the same values on every refresh. If your publication reads those settings from a `ReactiveVarAsync`, you can pass `EJSON.equals` when creating that variable so only a real settings change reruns its readers. [Filter equality example](./EXPERIMENTAL-REACTIVITY.md#skip-duplicate-values-from-an-external-source)
+A polling service may send a fresh settings object with the same values on every refresh. If your publication reads those settings from a `ReactiveVarAsync`, you can give that variable an equality function. With `new ReactiveVarAsync({ category: 'news' }, EJSON.equals)`, another `{ category: 'news' }` skips a rerun, while `{ category: 'events' }` updates the feed. Import `EJSON` from `meteor/ejson`. [Filter equality and parent projection measurements](./bench/PUBLICATION-MEASUREMENTS.md#application-level-tuning)
 
 #### Derived stats via aggregation
 
 This example shows how to publish derived data from a Mongo aggregation.
 
-It uses autorun to recalculate when the underlying collections change, and setData to push aggregated stats to the client.
+It uses autorun to recalculate when the underlying collections change, and setData to push aggregated stats to the client. The projected `authorId` and `postId` fields declare which edits must refresh the aggregation. Moving a post to another author changes both authors' statistics while the total number of posts stays the same.
 
 Server:
 ```javascript

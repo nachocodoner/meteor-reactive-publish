@@ -419,6 +419,9 @@ function registryFor(result) {
 
 export function compatibilityKey(result, mode = 'regression') {
   const { adapter, ...config } = result.config;
+  // Earlier count workloads omitted the default document-tracking mode.
+  if (config.scenario === 'derived-count')
+    config.countDependencies ??= 'documents';
   // A declared library implementation choice can differ between libraries.
   // Within a side it must remain fixed; regression mode still rejects it.
   if (mode === 'library' || mode === 'cursor-dependencies')
@@ -514,7 +517,9 @@ export function compareResults(
         adapter: run.config.adapter,
         packages: run.metadata.packages,
         cursorDependencies: run.config.cursorDependencies ?? null,
-        countDependencies: run.config.countDependencies ?? null,
+        countDependencies:
+          run.config.countDependencies ??
+          (run.config.scenario === 'derived-count' ? 'documents' : null),
         returnedCursorStrategy: run.config.returnedCursorStrategy ?? null,
         source: ['reactive', 'installed'].includes(run.config.adapter)
           ? run.metadata.source?.hash

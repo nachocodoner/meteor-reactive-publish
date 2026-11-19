@@ -103,18 +103,21 @@ function runOptions({ allowFanoutRate = false } = {}) {
         '--feed-tuning accepts none, parent-ids, filter-equality or both'
       );
   }
-  const cursorDependencies = values['cursor-dependencies'] || 'onFind';
-  if (!['onFind', 'onRead'].includes(cursorDependencies))
+  const cursorDependencies = values['cursor-dependencies'];
+  if (
+    cursorDependencies !== undefined &&
+    !['onFind', 'onRead'].includes(cursorDependencies)
+  )
     throw new Error('--cursor-dependencies must be onFind or onRead');
   const countDependencies = values['count-dependencies'];
   if (
     countDependencies !== undefined &&
-    (!['documents', 'membership'].includes(countDependencies) ||
-      cursorDependencies !== 'onRead' ||
-      values.scenario !== 'derived-count')
+    !['documents', 'membership'].includes(countDependencies)
   )
+    throw new Error('--count-dependencies accepts documents or membership');
+  if (countDependencies === 'membership' && cursorDependencies === 'onFind')
     throw new Error(
-      '--count-dependencies accepts documents or membership with --cursor-dependencies onRead and --scenario derived-count'
+      '--count-dependencies membership enables onRead and conflicts with explicit --cursor-dependencies onFind'
     );
   const returnedCursorStrategy =
     values['returned-cursor-strategy'] || 'standard';
@@ -217,8 +220,8 @@ Comparisons are advisory; --gate explicitly enables provisional timing budgets a
 Use --cursor-dependencies onFind|onRead and --returned-cursor-strategy standard|incremental for reactive autoruns.
 --mutations membership-only toggles a single selected ID in one-to-many or dependent-posts.
 --mutations metadata-edits mixes four field edits with one count change in derived-count.
---count-dependencies documents|membership compares count behavior with --cursor-dependencies onRead.
-Use compare --mode count-dependencies for results generated from the same reactive source.
+--count-dependencies membership enables count membership and onRead for derived-count.
+For compare --mode count-dependencies, run the document-tracking baseline with --cursor-dependencies onRead.
 --feed-tuning none|parent-ids|filter-equality|both chooses application code for the filtered-comments benchmark.
 --lifecycle adds optional Meteor 3.6+ method/publication/connection diagnostics; default is off.
 Comprehensive defaults: five pairs, 100 warmup + 1,000 operations, all ten common cases.
@@ -227,6 +230,14 @@ Load uses at least --duration seconds AND the operation minimum; --latency-budge
 `);
     return;
   }
+  if (
+    values['count-dependencies'] !== undefined &&
+    (values.scenario !== 'derived-count' ||
+      !['run', 'profile', 'matrix', 'paired'].includes(action))
+  )
+    throw new Error(
+      '--count-dependencies requires a derived-count run, profile, matrix or paired comparison'
+    );
   if (action === 'list') {
     for (const [name, scenario] of Object.entries(scenarios))
       console.log(

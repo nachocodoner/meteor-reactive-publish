@@ -1,48 +1,10 @@
-# Track changes to a reactive count
+# Reactive count measurements
 
-This experiment starts at the `1.2.0-beta.0` candidate, commit `5b5b2f5`. The new option lives on the `experiment/count-membership` branch.
+This comparison measured the CPU cost of publishing a count when most writes edit fields on documents already in the result. The original implementation at `b113173` enabled `cursorDependencies: 'onRead'` on both sides. It varied only the count dependency. The public option `countDependencies: 'membership'` now selects read tracking automatically. [Publication options](../PUBLICATION-OPTIONS.md)
 
-An open-ticket badge needs a new count when a ticket opens or closes. Editing an open ticket's title leaves the badge unchanged. Set `countDependencies: 'membership'` on the autorun that publishes the badge to skip rerunning it for title edits.
+## Projection control
 
-```js
-Meteor.publish('myOpenTicketCount', function () {
-  if (!this.userId) return this.ready();
-  this.autorun(
-    async () => {
-      const count = await Tickets.find({
-        assigneeId: this.userId,
-        open: true,
-      }).countAsync();
-      await this.setData('count', count);
-      this.ready();
-    },
-    { cursorDependencies: 'onRead', countDependencies: 'membership' }
-  );
-});
-```
-
-The option belongs to one autorun. You can also pass the same options as the third argument to `Meteor.publishReactive` for its implicit autorun, or as the second argument to `AsyncTracker.autorun`. Nested autoruns choose their own options. The existing defaults are `cursorDependencies: 'onFind'` and `countDependencies: 'documents'`.
-
-In membership mode, a plain named server Mongo cursor observes matching IDs and runs the original Mongo count whenever the autorun executes. An insert, delete, or selector-field edit that moves a document into or out of the set invalidates the computation. Edits within the set leave the count dependency alone. Other dependencies in the same function still trigger reruns. For example, calling `fetchAsync()` on the same cursor also observes document changes. Use ordinary document tracking if your function needs to run on edits to matching documents even when the count stays the same.
-
-Sorted, paginated, projected, transformed, local, and custom cursors keep their ordinary observation behavior. Membership tracking requires `cursorDependencies: 'onRead'` so that creating the cursor does not already observe every field.
-
-Choose this mode for a count-only autorun. If you count and fetch the same query in one autorun, the full fetch still wakes the function on field edits, and the ID-only count can add a second observer.
-
-## Getting the same behavior on the beta
-
-If you control the query, you can already project just the ID on the count cursor. This works on the beta with its default options as well as with `cursorDependencies: 'onRead'`.
-
-```js
-const count = await Tickets.find(
-  { assigneeId: this.userId, open: true },
-  { fields: { _id: 1 } }
-).countAsync();
-```
-
-A focused check against the beta's production code on Meteor 3.3.2 and 3.6 started with one matching ticket, changed its title, inserted another, closed the first, and deleted the second. Both projected readers ran four times with counts `1, 2, 1, 0`. An unprojected reader also reran on the title edit. The experimental option is most useful when the count cursor comes from a reusable query helper and callers want to leave that helper's projection intact.
-
-The experimental implementation (`b113173`) passed the full 164-test package suite on each Meteor release, including a mixed count-and-fetch autorun, sorted and limited fallback, invalid options, and observer cleanup after stop.
+A separate check on the beta at `5b5b2f5` used a count cursor with `{ fields: { _id: 1 } }`. On Meteor 3.3.2 and 3.6, both the default and read-tracking autoruns ran four times with counts `1, 2, 1, 0` across an initial read, title edit, insert, selector exit and delete. The unprojected count also ran on the title edit. This control measured reruns only.
 
 ## Measured effect
 
@@ -59,17 +21,19 @@ Every subscriber received all 20 count changes, and the observers and computatio
 
 ## Reproduce the comparison
 
-Run both modes from this branch with the same Meteor release, fixture, and client count. This example runs one pair. For repeated pairs, use fresh output directories and alternate which mode runs first.
+Both calls below use read tracking on the same reactive source. The control explicitly selects `onRead` and keeps document tracking for counts. The candidate selects membership tracking with one option. Keeping the cursor dependency mode equal isolates the effect of skipping edits within the matching set.
+
+Run from the repository root. For repeated pairs, alternate the order and save each pair in a fresh directory.
 
 ```sh
 trial=$(mktemp -d)
-for mode in documents membership; do
+run_count() {
   npm run bench -- run --meteor 3.6 --scenario derived-count --adapter reactive \
-    --cursor-dependencies onRead --count-dependencies "$mode" \
     --mutations metadata-edits --clients 4 --parents 200 --children 1 \
-    --warmup 10 --operations 100 --observation 30 --timeout 30000 \
-    --output "$trial/$mode.json"
-done
+    --warmup 10 --operations 100 --observation 30 --timeout 30000 "$@"
+}
+run_count --cursor-dependencies onRead --output "$trial/documents.json"
+run_count --count-dependencies membership --output "$trial/membership.json"
 npm run bench -- compare --mode count-dependencies \
   --baseline "$trial/documents.json" --target "$trial/membership.json"
 ```

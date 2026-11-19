@@ -102,6 +102,8 @@ npm run bench -- run --meteor 3.6 --adapter reactive --scenario dependent-posts 
 
 For the beta's `onRead` comparison, use the same client, fixture, warmup and write counts with `--scenario one-to-many --returned-cursor-strategy standard`. Omit `--mutations` to include mixed writes. Run once with `--cursor-dependencies onFind` and once with `--cursor-dependencies onRead`, saving separate outputs. Compare CPU per write with `compare --mode cursor-dependencies`. The raw JSON records autorun executions in `metrics.computation_runs`.
 
+To measure a reactive count, use `--scenario derived-count --mutations metadata-edits`. The workload mixes edits within the matching set with writes that change the count. Compare a baseline using `--cursor-dependencies onRead` against a candidate using `--count-dependencies membership`. Both runs use read tracking. [Count results and commands](./COUNT-MEMBERSHIP.md)
+
 ### Reproduce the default upgrade comparison
 
 From the beta checkout, compare the published 1.1.1 source revision with the local package. The reactive adapter uses the package defaults on both sides.
