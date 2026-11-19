@@ -100,6 +100,18 @@ npm run bench -- run --meteor 3.6 --adapter reactive --scenario dependent-posts 
   --observation 40 --timeout 30000 --seed 1 --instrumentation observers --output bench/results/saved-1-incremental.json
 ```
 
+For the beta's `onRead` comparison, use the same client, fixture, warmup and write counts with `--scenario one-to-many --returned-cursor-strategy standard`. Omit `--mutations` to include mixed writes. Run once with `--cursor-dependencies onFind` and once with `--cursor-dependencies onRead`, saving separate outputs. Compare CPU per write with `compare --mode cursor-dependencies`. The raw JSON records autorun executions in `metrics.computation_runs`.
+
+### Reproduce the default upgrade comparison
+
+From the beta checkout, compare the published 1.1.1 source revision with the local package. The reactive adapter uses the package defaults on both sides.
+
+```sh
+npm run bench -- paired --base c99252d --meteor 3.6 --scenario sorted-window \
+  --clients 4 --parents 200 --children 4 --warmup 12 --operations 120 \
+  --observation 40 --timeout 30000 --seed 1 --pairs 5 --output bench/results/default-upgrade
+```
+
 **Choose the run that answers your question.**
 
 All commands below run from the repository root. `reactive` uses the local library, including uncommitted package changes; `composite` uses the pinned `reywood:publish-composite@1.9.0`.
