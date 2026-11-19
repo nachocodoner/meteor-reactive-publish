@@ -70,7 +70,7 @@ Meteor.publish('myFeed', function () {
 });
 ```
 
-The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, and it can read the count with `sub.data('unreadCount')`.
+The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, and it can read the count with `sub.data('unreadCount')`. [Choose an option for each autorun](#choosing-an-autorun-option).
 
 #### Time-based queries
 
@@ -245,57 +245,57 @@ export default function AuthorStats() {
 
 ## Choosing an autorun option
 
-The 1.2 beta lets each autorun choose what should trigger another run and how to observe the cursor it returns. With `Meteor.publishReactive(name, fn, options)`, the settings apply to its single autorun. With `Meteor.publish`, pass them to the individual `this.autorun(fn, options)` that needs them. An autorun that omits options uses the defaults.
+The `myFeed` publication above has one autorun for posts and another for the unread count. In the 1.2 beta you can tune each independently. To follow along, keep the `userId` check in `Meteor.publish` and replace the two original autoruns with the ones below. [Original feed with default settings](#two-autoruns-in-one-publication)
 
-### Multiple autoruns
+### Count unread notifications only when the badge can change
 
-A ticket dashboard shows an open-ticket count, recent activity and the tickets the subscriber has pinned. The badge uses `'membership'` because it only needs to know when a ticket enters or leaves the count. The activity feed uses `'onRead'` because it reads the page size and returns a live cursor for the entries on that page.
+Editing an unread notification's text leaves the badge unchanged. Marking it as read lowers the badge by one. Use `countDependencies: 'membership'` to recount only when a notification enters or leaves the unread set.
 
 ```javascript
-Meteor.publish('myTicketDashboard', function () {
-  const assigneeId = this.userId;
-  if (!assigneeId) return this.ready();
+this.autorun(async () => {
+  const count = await Notifications.find({ userId, read: false }).countAsync();
+  await this.setData('unreadCount', count);
+}, { countDependencies: 'membership' });
+```
 
-  this.autorun(async () => {
-    const count = await Tickets.find({ assigneeId, open: true }).countAsync();
-    await this.setData('openCount', count);
-  }, { countDependencies: 'membership' });
+Membership enables read tracking automatically. In a benchmark where four out of five writes only edited a title, it produced **80% fewer autorun executions** and used **about 30% less server CPU per write**. Delivery of counts that did change took about 9% longer at the 95th percentile. [Count benchmark](./bench/COUNT-MEMBERSHIP.md#measured-effect)
 
-  this.autorun(async () => {
-    const limit = (await this.data('moreActivity')) === true ? 20 : 5;
-    return Activity.find({ userId: assigneeId }, {
-      fields: { message: 1, createdAt: 1 },
-      sort: { createdAt: -1 },
-      limit,
-    });
-  }, { cursorDependencies: 'onRead' });
+### Deliver a post edit without looking up the user again
 
-  this.autorun(async () => {
-    const [user] = await Meteor.users.find(
-      { _id: assigneeId },
-      { fields: { pinnedTicketIds: 1 } }
-    ).fetchAsync();
-    return Tickets.find(
-      { assigneeId, _id: { $in: user?.pinnedTicketIds || [] } },
-      { fields: { title: 1, open: 1 } }
-    );
-  }, {
-    cursorDependencies: 'onRead',
-    returnedCursorStrategy: 'incremental',
+The feed reads the user's `subscribedPosts` to choose which posts to send. A title edit already reaches the client through the returned `Posts` cursor. By default, that edit can also make the feed look up the user again. With `cursorDependencies: 'onRead'`, the function reruns when the data it reads changes. Here that means a change to the user's list of IDs.
+
+```javascript
+async function publishSubscribedPosts() {
+  const user = await Meteor.users.findOneAsync(userId, {
+    fields: { subscribedPosts: 1 },
   });
+  return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
+}
+
+this.autorun(publishSubscribedPosts, { cursorDependencies: 'onRead' });
+```
+
+A join that read posts and returned comments ran **50% fewer times** with `'onRead'` and delivered the same client updates. If the function also reads the comments to compute a value, edits to those comments still rerun it. [Read-tracking benchmark](./bench/PUBLICATION-MEASUREMENTS.md#read-tracking)
+
+### Keep watching the other posts when the list changes
+
+Adding a post to `subscribedPosts` changes the `$in` query. The function needs to run again to publish the new list. When users often add or remove one string ID at a time, `returnedCursorStrategy: 'incremental'` keeps observers for groups of posts that stayed on the list. It works on its own. Here we keep `'onRead'` so title edits still skip the user lookup.
+
+```javascript
+// Replace the posts autorun call above. The badge keeps its own settings.
+this.autorun(publishSubscribedPosts, {
+  cursorDependencies: 'onRead',
+  returnedCursorStrategy: 'incremental',
 });
 ```
 
-| What changes | What the subscriber sees | Which autorun runs again |
-| --- | --- | --- |
-| Edit a pinned ticket's title | The title updates through the returned `Tickets` cursor. | None. The count still matches the same IDs, and the pinned list only reads the user's `pinnedTicketIds`. |
-| Close an open, pinned ticket | The badge decreases and the pinned ticket shows as closed. | Only the count. The cursor delivers the new `open` field. |
-| Call `sub.setData('moreActivity', true)` | The activity window expands. | Only the activity autorun reads this setting. |
-| Pin another assigned ticket | The ticket joins the list. | Only the pinned-ticket autorun. It reads the new IDs and reuses observers for groups of IDs that stay selected. |
+In the saved-post benchmark, adding this option to `'onRead'` used **about 61% less server CPU per list edit** and cut client update time **about 52% at the 95th percentile**. It opened more observers at startup and took longer to become ready, so it fits feeds that stay open across many list edits. [Supported queries](./PUBLICATION-OPTIONS.md#publish-a-changing-list-of-ids) · [Saved-post benchmark](./bench/PUBLICATION-MEASUREMENTS.md#incremental-observation)
 
-By default, editing a pinned ticket can also wake the autorun that looked up the user's pinned IDs. With `'onRead'`, the returned cursor delivers the new title and skips that lookup. Pinning another ticket changes the query itself, so the autorun needs to run again. With `'incremental'`, groups of string IDs that stay pinned can keep their observers. This opens more observers up front and pays off when the list changes frequently.
+### Multiple autoruns
 
-See the [publication options guide](./PUBLICATION-OPTIONS.md) for individual examples, supported queries and measured tradeoffs. The benchmark also covers [improvements with default settings](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default).
+With `Meteor.publish`, each `this.autorun(fn, options)` gets its own settings. With `Meteor.publishReactive(name, fn, options)`, the options apply to its single autorun. The guide shows both feed autoruns together and a ticket dashboard with a third autorun for pagination. [Complete two-autorun feed](./PUBLICATION-OPTIONS.md#set-options-on-individual-autoruns) · [Ticket dashboard](./PUBLICATION-OPTIONS.md#a-ticket-dashboard-with-three-autoruns)
+
+The beta also saves work with the defaults. In a sorted feed benchmark it used **about 30% less server CPU per write** than 1.1.1 while sending identical updates. [Default upgrade benchmark](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
 ## TypeScript Support
 
