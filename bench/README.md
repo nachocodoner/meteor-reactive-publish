@@ -13,7 +13,7 @@ The CI coverage descriptions below apply to those optional comparison jobs when
 explicitly enabled. `.meteorignore` excludes the entire benchmark tree and
 development scripts from package source scanning.
 
-PR checks run every reactive-publish/native/installed variant and the browser
+Scheduled and manual benchmark runs execute every reactive-publish/native/installed variant and the browser
 check as blocking tests (29 variants). All ten unmodified publish-composite
 variants run separately as an advisory reference job; failures stay invalid and
 are excluded from rankings. `bench:all` without `--adapters` still runs all 39
@@ -80,6 +80,25 @@ npm run bench:smoke
 Use Node 22.12 or newer and an installed Meteor command, or select a Meteor checkout with `--meteor-cli` as described below. By default, the initial run downloads/builds the pinned Meteor 3.3.2 release if necessary. MongoDB and the application Node executable come from the selected runtime's dev bundle. Docker and a system Mongo installation are unnecessary. Each invocation owns its Mongo process and temporary database; it does not connect to an existing application database.
 
 Builds are cached outside the checkout under the operating system's temporary directory. The cache includes package source, app files, runtime, package manifests, and resolved version locks. `--rebuild` discards the selected cached build. The first build needs network access to fetch Atmosphere/npm packages. Ordinary runs reuse the cache.
+
+To compare returned cursor strategies, keep the source, dependency mode, fixture, and workload identical. The one-to-many case checks exact client documents after each operation. Use its default mixed writes to include child moves and edits. Use `--mutations membership-only` to alternate adding and removing one parent while all other parents and child documents stay fixed. The same mutation pattern on `dependent-posts` adds or removes one selected post ID from the reader's list.
+
+```sh
+npm run bench -- run --scenario one-to-many --meteor 3.6 --mutations membership-only --cursor-dependencies onRead --returned-cursor-strategy standard --output bench/results/standard.json
+npm run bench -- run --scenario one-to-many --meteor 3.6 --mutations membership-only --cursor-dependencies onRead --returned-cursor-strategy incremental --output bench/results/incremental.json
+npm run bench -- compare --mode returned-cursor-strategy --baseline bench/results/standard.json --target bench/results/incremental.json
+```
+
+Those commands run one smoke pair. For timing evidence, repeat fresh runs in alternating order with the same larger profile on both sides. Compare subscription readiness as well as CPU per operation, Mongo reads, and observer cleanup. `--mode cursor-dependencies` compares dependency modes while keeping the returned cursor strategy fixed.
+
+To reproduce the beta guide's timings, start with the command below. Run five pairs for each of `one-to-many` and `dependent-posts`, alternating which strategy runs first. Give each run its own output file. The separate 36-write database profiles use the benchmark runner's `databaseMetrics` and `databaseProfile` options.
+
+```sh
+npm run bench -- run --meteor 3.6 --adapter reactive --scenario dependent-posts \
+  --cursor-dependencies onRead --returned-cursor-strategy incremental --mutations membership-only \
+  --clients 4 --parents 200 --children 4 --warmup 12 --operations 120 \
+  --observation 40 --timeout 30000 --seed 1 --instrumentation observers --output bench/results/saved-1-incremental.json
+```
 
 **Choose the run that answers your question.**
 
@@ -397,7 +416,7 @@ Results include the Git revision, a content fingerprint, dirty status, and recur
 
 [The workflow](../.github/workflows/bench.yml) runs protocol/reporting tests and smoke checks on both Meteor 3.3.2 and 3.6, including native/installed/composite cursor checks, reactive subscription-data, and paired library smoke checks for sorted-window, churn, and shared authors. A blocking regression step also exercises reactive plain-cursor, dependent-posts, one-to-many, deep-join, fanout, multiple-autoruns, infinite-scroll, and async-pressure. Meteor 3.6 also gets blocking method/publication/connection instrumentation smoke checks. The separate package-test workflow includes the client/server lifecycle regression tests.
 
-Every PR runs all 39 scenario/backend/browser variants on both releases: 29 blocking reactive-publish/control variants and ten advisory, unmodified composite reference variants. Failures remain invalid in the HTML/Markdown/JSON artifacts. Use `all --adapters native,installed,reactive --browser` or `all --adapters composite` to reproduce either selection; the unfiltered command remains strict. PRs get a one-pair advisory performance comparison against the base package; scheduled/manual runs add repeated revision measurements. Timing gates are opt-in. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and their local validation.
+Pull requests run the package suite and lint. Scheduled and manual benchmark runs exercise 29 package/control cases on each Meteor release. Enabling comparative reports also runs ten advisory composite cases. Use `all --adapters native,installed,reactive --browser` or `all --adapters composite` to reproduce either selection. The unfiltered command runs all 39 cases. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and local validation.
 
 A separate scheduled/manual `comprehensive` job runs the full resource comparison and uploads `comprehensive-library-comparison`. Manual dispatch can select `full`, `quick`, or `disabled`. It has its own longer timeout and remains advisory because competitor correctness failures are retained. Hosted-runner measurements should be confirmed on a controlled machine before making small performance claims.
 

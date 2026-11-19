@@ -4,7 +4,14 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
-## Unreleased
+## [1.2.0-beta.0]
+
+Existing publication functions receive the lifecycle and cursor reuse improvements on upgrade. Two experimental options can be selected independently for a publication autorun.
+
+- Use `cursorDependencies: 'onRead'` when a returned Mongo cursor can deliver updates without rerunning the publication body. The default `'onFind'` tracks cursor creation.
+- Use `returnedCursorStrategy: 'incremental'` for supported Mongo cursors with a changing set of related IDs. The default is `'standard'`. See the [configuration guide](./EXPERIMENTAL-REACTIVITY.md).
+- Reconcile document ownership with fewer temporary collections and replace a selector's cached options directly. Both improvements apply with the default settings.
+- Run ordinary package tests on Meteor 3.3.2 and 3.6 and lint on pull requests. Full core tests can be started manually. Benchmarks run manually or on their schedule.
 
 - Exclude repository development dependencies and generated profiles from Meteor package source scanning, alongside the existing benchmark and script exclusions.
 

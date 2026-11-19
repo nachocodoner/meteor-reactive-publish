@@ -57,6 +57,8 @@ const stringOptions = [
   'retention-every',
   'latency-budget',
   'cursor-dependencies',
+  'returned-cursor-strategy',
+  'mutations',
   ...Object.keys(profiles.smoke),
 ];
 const { values, positionals } = parseArgs({
@@ -90,9 +92,23 @@ async function runsFrom(file) {
 
 let selectedRuntime;
 function runOptions({ allowFanoutRate = false } = {}) {
-  const cursorDependencies = values['cursor-dependencies'] || 'find';
-  if (!['find', 'reads'].includes(cursorDependencies))
-    throw new Error('--cursor-dependencies must be find or reads');
+  const cursorDependencies = values['cursor-dependencies'] || 'onFind';
+  if (!['onFind', 'onRead'].includes(cursorDependencies))
+    throw new Error('--cursor-dependencies must be onFind or onRead');
+  const returnedCursorStrategy =
+    values['returned-cursor-strategy'] || 'standard';
+  if (!['standard', 'incremental'].includes(returnedCursorStrategy))
+    throw new Error(
+      '--returned-cursor-strategy must be standard or incremental'
+    );
+  if (
+    values.mutations !== undefined &&
+    (values.mutations !== 'membership-only' ||
+      !['one-to-many', 'dependent-posts'].includes(values.scenario))
+  )
+    throw new Error(
+      '--mutations membership-only requires --scenario one-to-many or dependent-posts'
+    );
   const seed = Number(values.seed ?? 1);
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 0xffffffff)
     throw new Error('seed must be an unsigned 32-bit integer');
@@ -125,6 +141,8 @@ function runOptions({ allowFanoutRate = false } = {}) {
     instrumentation: values.instrumentation || 'observers',
     lifecycle: !!values.lifecycle,
     cursorDependencies,
+    returnedCursorStrategy,
+    mutations: values.mutations,
   };
 }
 
@@ -166,6 +184,8 @@ Use --source for another reactive-publish checkout. --meteor selects a released 
 Use --meteor-cli /path/to/meteor/meteor for a Meteor Git checkout, including worktrees and local changes.
 --meteor and --meteor-cli are mutually exclusive; every execution mode supports either choice.
 Comparisons are advisory; --gate explicitly enables provisional timing budgets after local calibration.
+Use --cursor-dependencies onFind|onRead and --returned-cursor-strategy standard|incremental for reactive autoruns.
+--mutations membership-only toggles a single selected ID in one-to-many or dependent-posts.
 --lifecycle adds optional Meteor 3.6+ method/publication/connection diagnostics; default is off.
 Comprehensive defaults: five pairs, 100 warmup + 1,000 operations, all ten common cases.
 Stages: core, load, retention, queries. --preset quick validates setup with sparse samples.

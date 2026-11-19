@@ -115,6 +115,17 @@ export async function buildApp({
       'Meteor runtime changed during this invocation; keep core source fixed and retry'
     );
   const info = await sourceInfo(source);
+  const usesLocalPackage = ['reactive', 'installed'].includes(adapter);
+  const packageName = 'nachocodoner:reactive-publish';
+  let packageVersion;
+  if (usesLocalPackage) {
+    const manifest = await fs.readFile(path.join(source, 'package.js'), 'utf8');
+    packageVersion = manifest.match(/^\s*version:\s*['"]([^'"]+)['"]/m)?.[1];
+    if (!packageVersion) throw new Error('Missing local package.js version');
+  }
+  const expectedPackage = usesLocalPackage
+    ? packageName + '@' + packageVersion
+    : null;
   const harness = await harnessHash();
   const inputs = [];
   for (const directory of ['app', 'adapters', 'fixtures', 'variants']) {
@@ -150,6 +161,11 @@ export async function buildApp({
       const cached = JSON.parse(await fs.readFile(complete, 'utf8'));
       // Older builds could capture the previous release's dev bundle on a cold
       // install. Validate those executables before reusing their production app.
+      if (
+        expectedPackage &&
+        !cached.versions.split('\n').includes(expectedPackage)
+      )
+        throw new Error('Cached app uses a different local package version');
       if (!cached.runtimePrepared) {
         const selectedNode = await runtimeNode(runtime, cached.app, log);
         if (
@@ -196,8 +212,8 @@ export async function buildApp({
       'standard-minifier-js',
     ];
     if (lifecycle) basePackages.push('instrumentation@=0.0.1');
-    if (['reactive', 'installed'].includes(adapter)) {
-      basePackages.push('nachocodoner:reactive-publish');
+    if (usesLocalPackage) {
+      basePackages.push(packageName + '@=' + packageVersion);
       const destination = path.join(app, 'packages/reactive-publish');
       for (const name of info.names) {
         await fs.mkdir(path.dirname(path.join(destination, name)), {
@@ -226,7 +242,13 @@ export async function buildApp({
       `${runtime.lockName}${lifecycle ? '.lifecycle' : ''}.versions`
     );
     try {
-      await fs.copyFile(versionsLock, path.join(app, '.meteor/versions'));
+      let versions = await fs.readFile(versionsLock, 'utf8');
+      if (expectedPackage)
+        versions = versions.replace(
+          /^nachocodoner:reactive-publish@.+$/m,
+          expectedPackage
+        );
+      await fs.writeFile(path.join(app, '.meteor/versions'), versions);
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }
@@ -267,7 +289,12 @@ export async function buildApp({
       'utf8'
     );
     const reactiveLoaded = versions.includes('nachocodoner:reactive-publish@');
-    if (reactiveLoaded !== ['reactive', 'installed'].includes(adapter))
+    if (expectedPackage && !versions.split('\n').includes(expectedPackage))
+      throw new Error(
+        'Build did not resolve the requested local package version: ' +
+          expectedPackage
+      );
+    if (reactiveLoaded !== usesLocalPackage)
       throw new Error('Package isolation check failed');
     await assertRuntimeUnchanged(runtime);
     const result = {

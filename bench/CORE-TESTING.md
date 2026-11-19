@@ -60,8 +60,7 @@ client writes still upsert it, and stopping the subscription removes it. The
 original upstream eight-message assertion passes without rewriting or filtering
 core tests. The wire probe now requires zero metadata messages for plain cursors.
 
-The core workflow is enabled for PRs, master and manual runs, pinned to the
-checkout below. Each Mongo backend runs the unmodified baseline followed by the
+The manual core workflow uses the pinned checkout below. Each Mongo backend runs the unmodified baseline followed by the
 verified local package. See [CI repair](./CI-REPAIR.md) for current results.
 
 ## Historical results (source selection was not verified)
@@ -134,9 +133,8 @@ or end-to-end suites.
 The four new runner orchestration tests, all 64 Node harness tests, lint and
 whitespace checks pass. The performance harness and package source hashes still
 match the prior 39-check smoke run; this follow-up changes testing infrastructure
-and documentation only. The core workflow remains disabled: it still needs a
-pinned checkout/configuration update and an explicit policy for the pre-existing
-raw-message test failure, rather than silently rewriting its expectation.
+and documentation only. At this checkpoint the core workflow was disabled pending a
+pinned checkout and a decision on the pre-existing raw-message test failure.
 
 
 ## Cache-optimization follow-up

@@ -1,18 +1,22 @@
 import 'meteor/meteor';
 import {
   AsyncTrackerComputation,
-  CursorDependencyOptions,
+  PublicationAutorunOptions,
 } from 'meteor/nachocodoner:reactive-publish';
 export {}; // keep it a module even if bundlers treeshake
 
 declare module 'meteor/nachocodoner:reactive-publish' {
   /** Experimental, per-autorun behavior. Nested autoruns do not inherit it. */
   interface CursorDependencyOptions {
-    /** "find" preserves existing behavior. "reads" tracks cursor reads, not
-     * creation; returned cursors still publish updates but do not rerun the
-     * function unless a read or another dependency changes. Local in-memory
-     * collection cursors retain their existing creation dependencies. */
-    cursorDependencies?: 'find' | 'reads';
+    /** In server Mongo autoruns, onFind (default) tracks cursor creation.
+     * onRead tracks supported cursor reads. Returned cursors still publish live updates. */
+    cursorDependencies?: 'onFind' | 'onRead';
+  }
+
+  interface PublicationAutorunOptions extends CursorDependencyOptions {
+    /** Use incremental observation for supported returned Mongo cursors.
+     * The default is standard cursor publication. */
+    returnedCursorStrategy?: 'standard' | 'incremental';
   }
   /**
    * AsyncTrackerDependency class for managing reactive dependencies
@@ -187,6 +191,7 @@ declare module 'meteor/nachocodoner:reactive-publish' {
   // Export the main classes
   export {
     CursorDependencyOptions,
+    PublicationAutorunOptions,
     AsyncTracker,
     AsyncTrackerComputation,
     AsyncTrackerDependency,
@@ -208,7 +213,7 @@ declare module 'meteor/meteor' {
     function publishReactive<T = any, Args extends any[] = any[]>(
       name: string,
       publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
-      options?: CursorDependencyOptions & Record<string, any>
+      options?: PublicationAutorunOptions & Record<string, any>
     ): any;
 
     // Extend the Meteor.SubscriptionHandle interface to include data and setData
@@ -245,7 +250,7 @@ declare module 'meteor/meteor' {
      */
     autorun<T = any>(
       runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>,
-      options?: CursorDependencyOptions
+      options?: PublicationAutorunOptions
     ): Promise<AsyncTrackerComputation<T>>;
 
     /**

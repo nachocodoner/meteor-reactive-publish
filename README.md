@@ -18,16 +18,39 @@
 
 ## Installation
 
+For the stable release, run `meteor add nachocodoner:reactive-publish`. To select **1.2.0-beta.0** once it is published, run
+
 ``` bash
-meteor add nachocodoner:reactive-publish@1.1.1
+meteor add nachocodoner:reactive-publish@=1.2.0-beta.0
 ```
 
 ## Usage
 
-The separate, unreleased cursor dependency prototype is documented in
-[Experimental cursor dependency modes](./EXPERIMENTAL-REACTIVITY.md), including
-opt-in examples, expected benefits and behavioral limitations. It is not part of
-the published package shown above.
+### Performance in 1.2
+
+Existing publications benefit on upgrade. An autorun can reuse an unchanged returned cursor and its observer. Changing a query releases obsolete dependencies and cursor cleanup callbacks, so a long-lived subscription can let go of documents it used to publish. Publications that use subscription data create its metadata on first use.
+
+For finer control, pass options when creating a publication autorun. For example, this function publishes comments on posts the subscriber owns. Editing a comment updates the client directly. Adding or removing an owned post reruns the function because it reads the post IDs.
+
+```js
+async function commentsOnMyPosts() {
+  if (!this.userId) return [];
+  const posts = await Posts.find(
+    { ownerId: this.userId },
+    { fields: { _id: 1 } }
+  ).fetchAsync();
+  return Comments.find(
+    { postId: { $in: posts.map(post => post._id) } },
+    { fields: { postId: 1, body: 1 } }
+  );
+}
+
+Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
+  cursorDependencies: 'onRead',
+});
+```
+
+The default `'onFind'` also reruns for changes to a cursor that your function only creates. Keep it when those reruns drive derived work. For frequently changing lists of related IDs, the beta also offers `returnedCursorStrategy: 'incremental'`. Each option applies to one autorun. [Examples, supported queries and tradeoffs](./EXPERIMENTAL-REACTIVITY.md)
 
 ### Reactive Composed Data Publish
 
@@ -299,9 +322,8 @@ to test another release. It uses Puppeteer's downloaded Chrome or an installed
 Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executable.
 If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
 avoids downloading additional browsers. Package CI checks a clean lockfile install
-and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The separate
-Meteor-core workflow remains disabled. The [core verification guide](./bench/CORE-TESTING.md)
-describes the isolated runner and full-suite results.
+and lint as well as client/server tests on Meteor 3.3.2 and 3.6. The Meteor-core
+suite runs on manual dispatch. See the [core verification guide](./bench/CORE-TESTING.md).
 
 See the [benchmark guide](./bench/README.md) for isolated databases, paired
 comparisons, calibration, profiling, and interpretation of measurements.

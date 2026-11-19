@@ -73,6 +73,7 @@ export async function runBenchmark(options) {
       profile,
       seed,
       scenarioVersion,
+      ...(options.mutations && { mutations: options.mutations }),
       level: options.level || 'ddp',
       rate: options.rate || 0,
       metricsVersion: 3,
@@ -89,7 +90,11 @@ export async function runBenchmark(options) {
         : options.instrumentation || 'observers',
       lifecycle: !!options.lifecycle,
       cursorDependencies:
-        adapter === 'reactive' ? options.cursorDependencies || 'find' : null,
+        adapter === 'reactive' ? options.cursorDependencies || 'onFind' : null,
+      returnedCursorStrategy:
+        adapter === 'reactive'
+          ? options.returnedCursorStrategy || 'standard'
+          : null,
     },
     metadata: { createdAt: new Date().toISOString() },
     metrics: {},
@@ -172,7 +177,8 @@ export async function runBenchmark(options) {
           instrumentation: options.instrumentation,
           retention: options.retention,
           lifecycle: !!options.lifecycle,
-          cursorDependencies: options.cursorDependencies || 'find',
+          cursorDependencies: result.config.cursorDependencies,
+          returnedCursorStrategy: result.config.returnedCursorStrategy,
         }),
         METEOR_SETTINGS: '{}',
         DDP_TRANSPORT: 'sockjs',
@@ -207,6 +213,10 @@ export async function runBenchmark(options) {
       status.metadata.compositeLoaded !== (adapter === 'composite')
     )
       throw new Error('Runtime package isolation failed');
+    if (status.metadata.meteor !== build.runtime.releaseFile)
+      throw new Error(
+        'Running Meteor release differs from the selected build runtime'
+      );
     if (status.metadata.sourceHash !== build.source.hash)
       throw new Error('Loaded source hash mismatch');
     result.metadata.node = status.metadata.node;
@@ -350,7 +360,12 @@ export async function runBenchmark(options) {
     await delay(50);
     const baseline = (await control('status')).resources;
     const exercise = async (measured) => {
-      const operation = operationFor(scenario, operationIndex++, model);
+      const operation = operationFor(
+        scenario,
+        operationIndex++,
+        model,
+        options.mutations
+      );
       const previous = expectedState(scenario, model, context);
       const previousData = expectedData(scenario, model, context);
       applyOperation(model, operation);
@@ -468,7 +483,12 @@ export async function runBenchmark(options) {
       for (let i = 0; i < profile.operations; i++) {
         const scheduled = generatorStart + (i * 1000) / options.rate;
         await waitUntilScheduled(scheduled);
-        const operation = operationFor(scenario, operationIndex++, model);
+        const operation = operationFor(
+          scenario,
+          operationIndex++,
+          model,
+          options.mutations
+        );
         applyOperation(model, operation);
         const received = clients.map((client) =>
           client.waitFor(

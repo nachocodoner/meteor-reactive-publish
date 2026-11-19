@@ -423,6 +423,8 @@ export function compatibilityKey(result, mode = 'regression') {
   // Within a side it must remain fixed; regression mode still rejects it.
   if (mode === 'library' || mode === 'cursor-dependencies')
     delete config.cursorDependencies;
+  if (mode === 'library' || mode === 'returned-cursor-strategy')
+    delete config.returnedCursorStrategy;
   const { source, packages, ...metadata } = result.metadata;
   const stable = { ...metadata };
   delete stable.buildKey;
@@ -457,24 +459,36 @@ export function compareResults(
   targets,
   { mode = 'regression', gate = false } = {}
 ) {
-  if (!['regression', 'library', 'cursor-dependencies'].includes(mode))
-    throw new Error(
-      'Comparison mode must be regression, library or cursor-dependencies'
-    );
+  const optionComparisons = {
+    // Old revisions wrote find/reads to their result files.
+    'cursor-dependencies': {
+      key: 'cursorDependencies',
+      values: ['onFind', 'onRead', 'find', 'reads'],
+    },
+    'returned-cursor-strategy': {
+      key: 'returnedCursorStrategy',
+      values: ['standard', 'incremental'],
+    },
+  };
+  const option = Object.hasOwn(optionComparisons, mode)
+    ? optionComparisons[mode]
+    : null;
+  if (!option && mode !== 'regression' && mode !== 'library')
+    throw new Error('Unknown comparison mode: ' + mode);
   if (!baselines.length || baselines.length !== targets.length)
     throw new Error('Comparison requires equal nonzero counts of paired runs');
   if (
-    mode === 'cursor-dependencies' &&
+    option &&
     [...baselines, ...targets].some(
       (run) =>
         run.config.adapter !== 'reactive' ||
-        !['find', 'reads'].includes(run.config.cursorDependencies) ||
+        !option.values.includes(run.config[option.key]) ||
         !run.metadata.source?.hash ||
         run.metadata.source.hash !== baselines[0].metadata.source?.hash
     )
   )
     throw new Error(
-      'Cursor-dependency comparisons require one reactive source and explicit modes'
+      'Option comparisons require one reactive source and explicit modes'
     );
   let reference;
   for (const run of [...baselines, ...targets]) {
@@ -495,6 +509,7 @@ export function compareResults(
         adapter: run.config.adapter,
         packages: run.metadata.packages,
         cursorDependencies: run.config.cursorDependencies ?? null,
+        returnedCursorStrategy: run.config.returnedCursorStrategy ?? null,
         source: ['reactive', 'installed'].includes(run.config.adapter)
           ? run.metadata.source?.hash
           : null,

@@ -1,6 +1,6 @@
 Package.describe({
   name: 'nachocodoner:reactive-publish',
-  version: '1.1.1',
+  version: '1.2.0-beta.0',
   summary: 'Reactive publish for Meteor with async support',
   git: 'https://github.com/nachocodoner/meteor-reactive-publish',
   documentation: 'README.md',
@@ -10,6 +10,8 @@ Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
   api.use([
     'ecmascript',
+    'ejson',
+    'diff-sequence',
     'mongo',
     'minimongo',
     'tracker',
@@ -79,6 +81,7 @@ Package.onTest(function (api) {
     'lib/ReactivePublish.tests.js',
     'lib/ReactivePublishLifecycle.tests.js',
     'lib/CursorDependencyModes.tests.js',
+    'lib/ReturnedCursorStrategy.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
     'lib/ReactiveData/ReactiveData.tests.js',
     'lib/ReactiveData/ReactiveDataShowcase.tests.js',

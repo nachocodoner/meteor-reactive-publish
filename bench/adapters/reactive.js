@@ -22,10 +22,12 @@ export function register(config, authorize) {
   Meteor.publish('bench', function (token, clientIndex) {
     authorize(token);
     const pub = this;
-    const autorun = (run) =>
-      pub.autorun(run, {
-        cursorDependencies: config.cursorDependencies || 'find',
-      });
+    const autorunOptions = {};
+    if (config.cursorDependencies === 'onRead')
+      autorunOptions.cursorDependencies = 'onRead';
+    if (config.returnedCursorStrategy === 'incremental')
+      autorunOptions.returnedCursorStrategy = 'incremental';
+    const autorun = (run) => pub.autorun(run, autorunOptions);
     const scenario = config.scenario;
     if (scenario === 'personalized-selectors') {
       const selector = personalizedSelector(

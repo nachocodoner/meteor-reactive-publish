@@ -69,6 +69,31 @@ test('cursor dependency experiments require explicit modes and identical reactiv
   );
 });
 
+test('returned cursor comparison allows only the observer strategy to vary', () => {
+  const standard = run();
+  standard.config.cursorDependencies = 'onRead';
+  standard.config.returnedCursorStrategy = 'standard';
+  const incremental = structuredClone(standard);
+  incremental.config.returnedCursorStrategy = 'incremental';
+  const compare = (a, b) =>
+    compareResults(a, b, { mode: 'returned-cursor-strategy' });
+  assert.doesNotThrow(() => compare([standard], [incremental]));
+  assert.throws(
+    () => compareResults([standard], [incremental]),
+    /Incompatible/
+  );
+  assert.throws(
+    () => compare([standard, standard], [incremental, standard]),
+    /identities within repeated runs/
+  );
+  const mixed = structuredClone(incremental);
+  mixed.config.cursorDependencies = 'onFind';
+  assert.throws(() => compare([standard], [mixed]), /Incompatible/);
+  const missing = structuredClone(incremental);
+  delete missing.config.returnedCursorStrategy;
+  assert.throws(() => compare([standard], [missing]), /explicit modes/);
+});
+
 test('library comparison allows a declared mode but rejects mixed modes within repetitions', () => {
   const composite = run();
   composite.config.adapter = 'composite';

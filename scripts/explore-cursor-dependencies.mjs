@@ -40,7 +40,7 @@ if (!withoutLifecycle) {
   }
   await fs.writeFile(
     path.join(candidate, '.bench-source-revision'),
-    'eff31d1+experimental-cursor-dependencies\n'
+    current.revision + '\n'
   );
 }
 const harness = await harnessHash();
@@ -124,13 +124,13 @@ try {
     const oldDefault = await run('default-control/baseline', {
       source: baseline,
       adapter: 'reactive',
-      cursorDependencies: 'find',
+      cursorDependencies: 'onFind',
       scenario: 'one-to-many',
       profile: smoke,
     });
     const newDefault = await run('default-control/candidate', {
       adapter: 'reactive',
-      cursorDependencies: 'find',
+      cursorDependencies: 'onFind',
       scenario: 'one-to-many',
       profile: smoke,
     });
@@ -139,16 +139,16 @@ try {
       if (!definition.adapters.includes('reactive')) continue;
       await run(`read-mode-smoke/${scenario}`, {
         adapter: 'reactive',
-        cursorDependencies: 'reads',
+        cursorDependencies: 'onRead',
         scenario,
         profile: smoke,
       });
     }
   }
   const arms = {
-    composite: { adapter: 'composite', cursorDependencies: 'find' },
-    default: { adapter: 'reactive', cursorDependencies: 'find' },
-    reads: { adapter: 'reactive', cursorDependencies: 'reads' },
+    composite: { adapter: 'composite', cursorDependencies: 'onFind' },
+    default: { adapter: 'reactive', cursorDependencies: 'onFind' },
+    reads: { adapter: 'reactive', cursorDependencies: 'onRead' },
   };
   const orders = [
     ['composite', 'default', 'reads'],

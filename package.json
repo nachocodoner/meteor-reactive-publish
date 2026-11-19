@@ -11,7 +11,7 @@
     "prepare": "lefthook install",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "publish": "./scripts/publish.sh",
+    "publish": "meteor publish",
     "test": "meteor test-packages ./",
     "test:ci": "node scripts/test-package.mjs",
     "test:core": "./scripts/test-core.sh",

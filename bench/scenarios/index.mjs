@@ -172,7 +172,7 @@ export function expectedData(name, model, context = {}) {
   return null;
 }
 
-export function operationFor(name, index, model) {
+export function operationFor(name, index, model, mutations) {
   const revision = index + 1;
   const update = (collection, id, set, unset = []) => ({
     kind: 'update',
@@ -195,6 +195,27 @@ export function operationFor(name, index, model) {
       },
       index % 2 ? [] : ['optional']
     );
+  }
+  if (mutations === 'membership-only') {
+    if (name === 'dependent-posts') {
+      const user = model.bench_users[0];
+      const id = model.bench_posts[1]._id;
+      return update('bench_users', user._id, {
+        postIds: user.postIds.includes(id)
+          ? user.postIds.filter((key) => key !== id)
+          : [...user.postIds, id],
+        revision,
+      });
+    }
+    if (name !== 'one-to-many')
+      throw new Error(
+        'Membership-only operations require one-to-many or dependent-posts'
+      );
+    const parent = model.bench_posts[1];
+    return update('bench_posts', parent._id, {
+      active: !parent.active,
+      revision,
+    });
   }
   const post = model.bench_posts[0];
   if (name === 'fanout')

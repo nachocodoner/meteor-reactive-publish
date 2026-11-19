@@ -1,17 +1,6 @@
 name: Publication benchmarks
 
 on:
-  pull_request:
-    paths:
-      - 'lib/**'
-      - 'main.js'
-      - 'package.js'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'bench/**'
-      - '.github/workflows/bench.yml'
-  push:
-    branches: [master]
   workflow_dispatch:
     inputs:
       scenario:
@@ -98,11 +87,6 @@ jobs:
           BENCH_SCENARIO: ${{ inputs.scenario || 'sorted-window' }}
           BENCH_PAIRS: ${{ inputs.pairs || '5' }}
         run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base HEAD --scenario "$BENCH_SCENARIO" --profile standard --warmup 100 --operations 1000 --pairs "$BENCH_PAIRS" --output bench/results/calibration
-      - name: PR baseline comparison
-        if: vars.PUBLISH_BENCHMARK_REPORTS == 'true' && github.event_name == 'pull_request'
-        env:
-          BENCH_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: npm run bench -- paired --meteor "$BENCH_METEOR_RELEASE" --base "$BENCH_BASE_SHA" --scenario sorted-window --pairs 1 --output bench/results/pr
       - name: Complete reactive-publish and control matrix
         run: npm run bench:all -- --meteor "$BENCH_METEOR_RELEASE" --adapters native,installed,reactive --pairs 1 --profile smoke --browser --output bench/results/full
       - name: Job summary

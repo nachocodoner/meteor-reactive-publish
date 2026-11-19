@@ -86,6 +86,47 @@ test('shared children remain while referenced and aggregates react to grouping-f
   assert.equal(expectedState('shared-children', model).bench_authors.length, 1);
 });
 
+test('parent membership operations add and remove one parent with all its children', () => {
+  const model = fixture({ parents: 200, children: 2 });
+  const initial = expectedState('one-to-many', model);
+  assert.equal(initial.bench_posts.length, 100);
+  for (let i = 0; i < 6; i++) {
+    applyOperation(
+      model,
+      operationFor('one-to-many', i, model, 'membership-only')
+    );
+    const result = expectedState('one-to-many', model);
+    const added = i % 2 === 0;
+    assert.equal(result.bench_posts.length, 100 + Number(added));
+    assert.equal(result.bench_comments.length, 200 + (added ? 2 : 0));
+    assert.deepEqual(
+      result.bench_comments.filter((c) => c.postId !== 'post-1'),
+      initial.bench_comments
+    );
+    assert.equal(
+      result.bench_posts.some((p) => p._id === 'post-1'),
+      added
+    );
+  }
+});
+
+test('membership-only dependent posts preserve the selected hundred IDs', () => {
+  const model = fixture({ parents: 200, children: 1 });
+  const initial = expectedState('dependent-posts', model).bench_posts;
+  for (let i = 0; i < 6; i++) {
+    applyOperation(
+      model,
+      operationFor('dependent-posts', i, model, 'membership-only')
+    );
+    const docs = expectedState('dependent-posts', model).bench_posts;
+    assert.deepEqual(
+      docs.filter((p) => p._id !== 'post-1'),
+      initial
+    );
+    assert.equal(docs.length, 100 + Number(i % 2 === 0));
+  }
+});
+
 test('every workload generates a valid operation sequence across warmup boundaries', () => {
   for (const name of Object.keys(scenarios)) {
     if (name === 'subscription-churn') continue;
