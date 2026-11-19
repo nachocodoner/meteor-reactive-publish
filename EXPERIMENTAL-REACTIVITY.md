@@ -122,11 +122,15 @@ In a separate 36-write Mongo profile, the saved-posts case used **40% fewer read
 
 ## Optional application code changes
 
-These are application tuning suggestions. Both APIs were already available in 1.1.1. To use the first, edit the parent query inside your publication function. To use the second, edit the code that constructs your reactive variable. The comparison rule applies to all subscribers reading that variable. You can use either beta publication setting without making these edits.
+If a busy feed keeps selecting the same documents, look at the inputs its function reads. These two application techniques work in 1.1.1 and with either beta publication setting.
 
-**Read only the parent fields that affect the join.** In `commentsOnMyPosts`, the parent query uses `{ fields: { _id: 1 } }` because the child selector needs only post IDs. If a title changes, the IDs are still the same. If a post changes owner, the selector's membership changes and the comments update. A regression compares the same parent read with and without this projection using default package settings. Eight successive title edits cause eight extra executions with full documents and zero with the ID projection. Both readers rerun on the ownership change. A function that uses the title must include it in the projection. [Projection test](./lib/CursorDependencyModes.tests.js)
+### Read only the parent fields that affect the join
 
-**Skip duplicate values from an external source.** Suppose a settings service refreshes the category of a site-wide public feed. It sends a fresh object on every poll. Set an equality function on the `ReactiveVarAsync` that holds that filter.
+In `commentsOnMyPosts`, the parent query uses `{ fields: { _id: 1 } }` because the child selector needs only post IDs. If a title changes, the IDs are still the same. If a post changes owner, the selector's membership changes and the comments update. A regression compares the same parent read with and without this projection using default package settings. Eight successive title edits cause eight extra executions with full documents and zero with the ID projection. Both readers rerun on the ownership change. A function that uses the title must include it in the projection. [Projection test](./lib/CursorDependencyModes.tests.js)
+
+### Skip duplicate values from an external source
+
+Suppose a settings service refreshes the category of a site-wide public feed. It sends a fresh object on every poll. Set an equality function on the `ReactiveVarAsync` that holds that filter. All subscribers reading that variable share its comparison rule.
 
 ```js
 import { EJSON } from 'meteor/ejson';

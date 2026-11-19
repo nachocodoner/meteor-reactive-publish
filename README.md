@@ -52,7 +52,7 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 
 The default `'onFind'` also reruns for changes to a cursor that your function only creates. Keep it when those reruns drive derived work. In a mixed-write benchmark, `'onRead'` cut autorun executions by **50%** with identical client traffic. For long-lived saved-ID lists, `returnedCursorStrategy: 'incremental'` used **60.9% less application CPU per membership change** across five paired runs, at the cost of a slower initial subscription. Each option applies to one autorun. [Performance guide and measurements](./EXPERIMENTAL-REACTIVITY.md)
 
-The guide also gives two suggestions for editing your own application code using existing APIs. One changes the fields a Mongo query reads, and the other changes how a reactive variable compares incoming values. [Optional application code changes](./EXPERIMENTAL-REACTIVITY.md#optional-application-code-changes)
+The comments query above needs only the post IDs. Selecting `{ fields: { _id: 1 } }` on the parent query means a title edit leaves that input unchanged. If your function uses the title too, include it in the projection. [Parent projection example](./EXPERIMENTAL-REACTIVITY.md#read-only-the-parent-fields-that-affect-the-join)
 
 ### Reactive Composed Data Publish
 
@@ -185,7 +185,7 @@ sub.setData('limit', 20);
 
 #### External reactive source
 
-This example shows how to publish data reactively from an external source. Here it's simulated with an interval toggling a user's subscription tier, but in practice it could be an API, another database, or any third-party service.
+This example simulates an external service changing a user's subscription tier every five seconds.
 
 Server:
 ```javascript
@@ -218,6 +218,8 @@ export default function SubscriptionInfo({ userId }) {
   return <p>Subscription tier: {tier || 'loading...'}</p>;
 }
 ```
+
+A polling service may send a fresh settings object with the same values on every refresh. If your publication reads those settings from a `ReactiveVarAsync`, you can pass `EJSON.equals` when creating that variable so only a real settings change reruns its readers. [Filter equality example](./EXPERIMENTAL-REACTIVITY.md#skip-duplicate-values-from-an-external-source)
 
 #### Derived stats via aggregation
 
