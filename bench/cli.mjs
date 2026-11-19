@@ -58,6 +58,7 @@ const stringOptions = [
   'latency-budget',
   'cursor-dependencies',
   'returned-cursor-strategy',
+  'feed-tuning',
   'mutations',
   ...Object.keys(profiles.smoke),
 ];
@@ -92,6 +93,15 @@ async function runsFrom(file) {
 
 let selectedRuntime;
 function runOptions({ allowFanoutRate = false } = {}) {
+  const feedTuning = values['feed-tuning'];
+  if (feedTuning !== undefined) {
+    if (values.scenario !== 'filtered-comments')
+      throw new Error('--feed-tuning requires --scenario filtered-comments');
+    if (!['none', 'parent-ids', 'filter-equality', 'both'].includes(feedTuning))
+      throw new Error(
+        '--feed-tuning accepts none, parent-ids, filter-equality or both'
+      );
+  }
   const cursorDependencies = values['cursor-dependencies'] || 'onFind';
   if (!['onFind', 'onRead'].includes(cursorDependencies))
     throw new Error('--cursor-dependencies must be onFind or onRead');
@@ -142,6 +152,8 @@ function runOptions({ allowFanoutRate = false } = {}) {
     lifecycle: !!values.lifecycle,
     cursorDependencies,
     returnedCursorStrategy,
+    parentProjection: feedTuning === 'parent-ids' || feedTuning === 'both',
+    filterEquality: feedTuning === 'filter-equality' || feedTuning === 'both',
     mutations: values.mutations,
   };
 }
@@ -186,6 +198,7 @@ Use --meteor-cli /path/to/meteor/meteor for a Meteor Git checkout, including wor
 Comparisons are advisory; --gate explicitly enables provisional timing budgets after local calibration.
 Use --cursor-dependencies onFind|onRead and --returned-cursor-strategy standard|incremental for reactive autoruns.
 --mutations membership-only toggles a single selected ID in one-to-many or dependent-posts.
+--feed-tuning none|parent-ids|filter-equality|both chooses application code for the filtered-comments benchmark.
 --lifecycle adds optional Meteor 3.6+ method/publication/connection diagnostics; default is off.
 Comprehensive defaults: five pairs, 100 warmup + 1,000 operations, all ten common cases.
 Stages: core, load, retention, queries. --preset quick validates setup with sparse samples.

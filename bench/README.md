@@ -14,9 +14,9 @@ explicitly enabled. `.meteorignore` excludes the entire benchmark tree and
 development scripts from package source scanning.
 
 Scheduled and manual benchmark runs execute every reactive-publish/native/installed variant and the browser
-check as blocking tests (29 variants). All ten unmodified publish-composite
+check as blocking tests (30 variants). All ten unmodified publish-composite
 variants run separately as an advisory reference job; failures stay invalid and
-are excluded from rankings. `bench:all` without `--adapters` still runs all 39
+are excluded from rankings. `bench:all` without `--adapters` runs all 40
 variants and fails if any fail. See [CI repair](./CI-REPAIR.md).
 
 ## Optional Meteor 3.6 lifecycle diagnostics
@@ -111,6 +111,18 @@ npm run bench -- paired --base c99252d --meteor 3.6 --scenario sorted-window \
   --clients 4 --parents 200 --children 4 --warmup 12 --operations 120 \
   --observation 40 --timeout 30000 --seed 1 --pairs 5 --output bench/results/default-upgrade
 ```
+
+### Compare parent projections and filter equality
+
+The `filtered-comments` publication reads posts matching an external `{ active }` filter and publishes their comments. Each cycle refreshes the current filter with an equivalent object, edits a selected post's title, switches the filter, then edits a newly selected comment. Clients check the expected comments after each operation.
+
+```sh
+node scripts/benchmark-feed-tunings.mjs --pairs 5 --meteor 3.6 --output bench/results/feed-tunings
+```
+
+Each round runs the same publication four times, rotating the order. It compares default application code, a parent query projecting only `_id`, a filter using `EJSON.equals`, and both choices together. All four use the package's default cursor settings. Use a fresh output directory. The command saves each run and a `comparison.json` with application CPU per write, autorun executions, and client update p95 for writes that change visible data. It also checks that the four versions deliver identical DDP traffic and release their observers.
+
+For a single short run, use `npm run bench -- run --scenario filtered-comments --meteor 3.6 --feed-tuning both`. The benchmark CLI accepts `none`, `parent-ids`, `filter-equality`, and `both`. In application code, pass `fields` to the Mongo query and the comparator to the reactive variable. [Working publication](./adapters/reactive.js)
 
 **Choose the run that answers your question.**
 
@@ -428,7 +440,7 @@ Results include the Git revision, a content fingerprint, dirty status, and recur
 
 [The workflow](../.github/workflows/bench.yml) runs protocol/reporting tests and smoke checks on both Meteor 3.3.2 and 3.6, including native/installed/composite cursor checks, reactive subscription-data, and paired library smoke checks for sorted-window, churn, and shared authors. A blocking regression step also exercises reactive plain-cursor, dependent-posts, one-to-many, deep-join, fanout, multiple-autoruns, infinite-scroll, and async-pressure. Meteor 3.6 also gets blocking method/publication/connection instrumentation smoke checks. The separate package-test workflow includes the client/server lifecycle regression tests.
 
-Pull requests run the package suite and lint. Scheduled and manual benchmark runs exercise 29 package/control cases on each Meteor release. Enabling comparative reports also runs ten advisory composite cases. Use `all --adapters native,installed,reactive --browser` or `all --adapters composite` to reproduce either selection. The unfiltered command runs all 39 cases. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and local validation.
+Pull requests run the package suite and lint. Scheduled and manual benchmark runs exercise 30 package/control cases on each Meteor release. Enabling comparative reports also runs ten advisory composite cases. Use `all --adapters native,installed,reactive --browser` or `all --adapters composite` to reproduce either selection. The unfiltered command runs all 40 cases. See [FINDINGS.md](./FINDINGS.md) for the lifecycle fixes and local validation.
 
 A separate scheduled/manual `comprehensive` job runs the full resource comparison and uploads `comprehensive-library-comparison`. Manual dispatch can select `full`, `quick`, or `disabled`. It has its own longer timeout and remains advisory because competitor correctness failures are retained. Hosted-runner measurements should be confirmed on a controlled machine before making small performance claims.
 

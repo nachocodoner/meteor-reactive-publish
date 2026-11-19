@@ -49,6 +49,13 @@ const resourcesReleased = (end, baseline) =>
 export async function runBenchmark(options) {
   const { scenario, adapter, profile, seed = 1 } = options;
   validateScenario(scenario, adapter);
+  const feedOptions =
+    scenario === 'filtered-comments'
+      ? {
+          parentProjection: !!options.parentProjection,
+          filterEquality: !!options.filterEquality,
+        }
+      : {};
   if (options.rate && scenario !== 'fanout')
     throw new Error('Offered load requires fanout');
   if (options.retention && scenario !== 'subscription-churn')
@@ -73,6 +80,7 @@ export async function runBenchmark(options) {
       profile,
       seed,
       scenarioVersion,
+      ...feedOptions,
       ...(options.mutations && { mutations: options.mutations }),
       level: options.level || 'ddp',
       rate: options.rate || 0,
@@ -179,6 +187,7 @@ export async function runBenchmark(options) {
           lifecycle: !!options.lifecycle,
           cursorDependencies: result.config.cursorDependencies,
           returnedCursorStrategy: result.config.returnedCursorStrategy,
+          ...feedOptions,
         }),
         METEOR_SETTINGS: '{}',
         DDP_TRANSPORT: 'sockjs',

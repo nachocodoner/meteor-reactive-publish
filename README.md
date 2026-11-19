@@ -50,7 +50,9 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 });
 ```
 
-The default `'onFind'` also reruns for changes to a cursor that your function only creates. Keep it when those reruns drive derived work. In a mixed-write benchmark, `'onRead'` cut autorun executions by **50%** with identical client traffic. For long-lived saved-ID lists, `returnedCursorStrategy: 'incremental'` used **60.9% less application CPU per membership change** across five paired runs, at the cost of a slower initial subscription. Each option applies to one autorun. The guide includes examples, results for the default upgrade, and ways to avoid reruns using ordinary Mongo projections or `ReactiveVarAsync` equality. [Performance guide and measurements](./EXPERIMENTAL-REACTIVITY.md)
+The default `'onFind'` also reruns for changes to a cursor that your function only creates. Keep it when those reruns drive derived work. In a mixed-write benchmark, `'onRead'` cut autorun executions by **50%** with identical client traffic. For long-lived saved-ID lists, `returnedCursorStrategy: 'incremental'` used **60.9% less application CPU per membership change** across five paired runs, at the cost of a slower initial subscription. Each option applies to one autorun. [Performance guide and measurements](./EXPERIMENTAL-REACTIVITY.md)
+
+You can also tune a feed while keeping both autorun defaults. Project `{ _id: 1 }` on a parent query when the join needs only IDs. Pass `EJSON.equals` to the individual `ReactiveVarAsync` when a poller sends fresh objects with equivalent filter values. Each choice is independent. [Working example and results](./EXPERIMENTAL-REACTIVITY.md#two-ways-to-avoid-redundant-reruns-with-existing-apis)
 
 ### Reactive Composed Data Publish
 

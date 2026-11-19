@@ -20,6 +20,10 @@ export const scenarios = {
     adapters: joins,
     description: 'Active posts and their comments',
   },
+  'filtered-comments': {
+    adapters: ['reactive'],
+    description: 'Comments for posts selected by a refreshed activity filter',
+  },
   'deep-join': {
     adapters: joins,
     description: 'Posts, comments, and shared comment authors',
@@ -97,6 +101,19 @@ export function expectedState(name, model, context = {}) {
   };
   const active = model.bench_posts.filter((doc) => doc.active);
   if (isDataScenario(name)) return result;
+  if (name === 'filtered-comments') {
+    const showActive = context.external?.active ?? true;
+    const ids = new Set(
+      model.bench_posts
+        .filter((post) => post.active === showActive)
+        .map((post) => post._id)
+    );
+    add(
+      'bench_comments',
+      model.bench_comments.filter((doc) => ids.has(doc.postId))
+    );
+    return result;
+  }
   if (name === 'personalized-selectors') {
     const authorId = `author-${(context.clientIndex || 0) % 3}`;
     add(
@@ -195,6 +212,35 @@ export function operationFor(name, index, model, mutations) {
       },
       index % 2 ? [] : ['optional']
     );
+  }
+  if (name === 'filtered-comments') {
+    // Each four writes refresh the same filter, edit a selected parent, flip
+    // the filter, and edit one of the newly selected comments.
+    const beforeFlip = Math.floor(index / 4) % 2 === 0;
+    switch (index % 4) {
+      case 0:
+        return { kind: 'external', value: { active: beforeFlip } };
+      case 1: {
+        const post = model.bench_posts.find(
+          (post) => post.active === beforeFlip
+        );
+        return update('bench_posts', post._id, { title: `Edited ${revision}` });
+      }
+      case 2:
+        return { kind: 'external', value: { active: !beforeFlip } };
+      case 3: {
+        const post = model.bench_posts.find(
+          (post) => post.active !== beforeFlip
+        );
+        const comment = model.bench_comments.find(
+          (doc) => doc.postId === post._id
+        );
+        return update('bench_comments', comment._id, {
+          text: `Edit ${revision}`,
+          revision,
+        });
+      }
+    }
   }
   if (mutations === 'membership-only') {
     if (name === 'dependent-posts') {

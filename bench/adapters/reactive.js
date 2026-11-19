@@ -1,4 +1,5 @@
 import { Meteor } from 'meteor/meteor';
+import { EJSON } from 'meteor/ejson';
 import {
   AsyncTracker,
   ReactiveVarAsync,
@@ -15,10 +16,18 @@ import {
 } from './collections.js';
 
 export { AsyncTracker, ReactiveVarAsync, ComputedField, DataLookup };
-const external = new ReactiveVarAsync(0);
+let external;
 export const setExternal = (value) => external.set(value);
 
 export function register(config, authorize) {
+  external =
+    config.scenario === 'filtered-comments'
+      ? new ReactiveVarAsync(
+          { active: true },
+          config.filterEquality ? EJSON.equals : undefined
+        )
+      : new ReactiveVarAsync(0);
+
   Meteor.publish('bench', function (token, clientIndex) {
     authorize(token);
     const pub = this;
@@ -79,6 +88,16 @@ export function register(config, authorize) {
       return;
     }
     autorun(async () => {
+      if (scenario === 'filtered-comments') {
+        const filter = external.get();
+        const parents = await posts
+          .find(filter, config.parentProjection ? { fields: { _id: 1 } } : {})
+          .fetchAsync();
+        return comments.find(
+          { postId: { $in: parents.map((post) => post._id) } },
+          options('bench_comments')
+        );
+      }
       if (scenario === 'external-source') {
         await pub.setData('value', external.get());
         pub.ready();

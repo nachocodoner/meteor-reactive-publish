@@ -59,6 +59,8 @@ An earlier experiment repeated each mode six times with ten subscribers and 200 
 
 ## Two ways to avoid redundant reruns with existing APIs
 
+Both choices are opt-in and independent. Specify a projection on the individual parent query. Specify an equality function when creating the reactive variable that holds the filter. All subscribers reading that variable share its comparison rule.
+
 **Read only the parent fields that affect the join.** In `commentsOnMyPosts`, the parent query uses `{ fields: { _id: 1 } }` because the child selector needs only post IDs. If a title changes, the IDs are still the same. If a post changes owner, the selector's membership changes and the comments update. A regression compares the same parent read with and without this projection using default package settings. Eight successive title edits cause eight extra executions with full documents and zero with the ID projection. Both readers rerun on the ownership change. A function that uses the title must include it in the projection. [Projection test](./lib/CursorDependencyModes.tests.js)
 
 **Skip duplicate values from an external source.** Suppose a settings service refreshes the category of a site-wide public feed. It sends a fresh object on every poll. Set an equality function on the `ReactiveVarAsync` that holds that filter.
@@ -79,7 +81,20 @@ async function applyFeedSettings({ category }) {
 }
 ```
 
-The default equality check treats an object assignment as a change. With this comparator, receiving `'news'` again keeps the current value and skips every dependent autorun. Receiving `'events'` updates the feed. Compare every field your consumers need. The package test verifies zero reruns for an equivalent write and one for a distinct write. The CPU benefit depends on how expensive those reruns are and how often the input repeats. [Equality test](./lib/ReactiveAsync/ReactiveVarAsync.tests.js)
+The default equality check treats an object assignment as a change. With this comparator, receiving `'news'` again keeps the current value and skips every dependent autorun. Receiving `'events'` updates the feed. Pass a fresh object for each refresh and compare every field your consumers need. In the package test, eight equivalent refreshes plus one real category change caused **nine reruns by default and one with `EJSON.equals`**. Both readers saw the new category. [Equality test](./lib/ReactiveAsync/ReactiveVarAsync.tests.js)
+
+### What these choices saved on a live feed
+
+Four subscribers watched comments on posts selected by a shared `{ active }` filter. Each run used 200 posts, four comments per post and 120 operations. Every four operations included an equivalent filter refresh, a parent title edit, a real filter switch and a comment edit. Five rounds on Meteor 3.6 compared the same publication in all four configurations, with both autorun options at their defaults.
+
+| Application code | Autorun executions per run | Application CPU per operation | CPU reduction from default |
+| --- | ---: | ---: | ---: |
+| Full parent documents, default filter equality | 480 | 22.96 ms | Baseline |
+| Project parent IDs only | 360 | 21.16 ms | **7.8%** |
+| Use `EJSON.equals` for the filter only | 360 | 21.81 ms | **5.0%** |
+| Use both | 240 | 20.71 ms | **9.8%** |
+
+With both tunings, the publication skipped **half its executions**. The 60 operations that changed visible comments still had to reach all four clients. Every run delivered the same 96,480 DDP messages and 10,478,825 payload bytes. Client update p95 was 61.03 ms with the defaults and 60.86 ms with both choices. This workload showed a server CPU saving with similar client latency. [Run the four-way comparison](./bench/README.md#compare-parent-projections-and-filter-equality)
 
 ## Decide how to observe a changing list
 

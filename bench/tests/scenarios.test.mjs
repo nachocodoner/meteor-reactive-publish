@@ -127,6 +127,47 @@ test('membership-only dependent posts preserve the selected hundred IDs', () => 
   }
 });
 
+test('filtered comments skip duplicate filter and parent edits, then deliver the new selection and child update', () => {
+  const model = fixture({ parents: 4, children: 1 });
+  const context = {};
+  const state = () => expectedState('filtered-comments', model, context);
+  const apply = (index) => {
+    const operation = operationFor('filtered-comments', index, model);
+    if (operation.kind === 'external') context.external = operation.value;
+    applyOperation(model, operation);
+    return operation;
+  };
+
+  for (let cycle = 0; cycle < 2; cycle++) {
+    const offset = cycle * 4;
+    const before = state();
+    const active = cycle === 0;
+    const previousFilter = context.external || { active };
+    const duplicate = apply(offset);
+    assert.deepEqual(duplicate.value, previousFilter);
+    assert.notEqual(duplicate.value, previousFilter);
+    assert.deepEqual(state(), before);
+
+    const edit = apply(offset + 1);
+    assert.equal(edit.id, active ? 'post-0' : 'post-1');
+    assert.deepEqual(state(), before);
+
+    apply(offset + 2);
+    const after = state();
+    assert.deepEqual(Object.keys(after), ['bench_comments']);
+    assert.deepEqual(
+      after.bench_comments.map((doc) => doc._id),
+      active ? ['comment-1-0', 'comment-3-0'] : ['comment-0-0', 'comment-2-0']
+    );
+    const childEdit = apply(offset + 3);
+    assert.equal(childEdit.id, after.bench_comments[0]._id);
+    assert.deepEqual(state().bench_comments, [
+      { ...after.bench_comments[0], ...childEdit.set },
+      after.bench_comments[1],
+    ]);
+  }
+});
+
 test('every workload generates a valid operation sequence across warmup boundaries', () => {
   for (const name of Object.keys(scenarios)) {
     if (name === 'subscription-churn') continue;
