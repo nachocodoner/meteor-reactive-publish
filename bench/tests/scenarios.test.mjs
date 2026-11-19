@@ -110,6 +110,32 @@ test('parent membership operations add and remove one parent with all its childr
   }
 });
 
+test('count metadata workload edits a matching row four times before toggling another row', () => {
+  const model = fixture({ parents: 4, children: 1 });
+  const count = () => expectedData('derived-count', model).value;
+  const next = (index) =>
+    operationFor('derived-count', index, model, 'metadata-edits');
+  assert.equal(count(), 2);
+  for (let cycle = 0; cycle < 2; cycle++) {
+    const before = count();
+    for (let edit = 0; edit < 4; edit++) {
+      const operation = next(cycle * 5 + edit);
+      const row = model.bench_posts[0];
+      assert.equal(operation.id, row._id);
+      assert.equal(row.active, true);
+      assert.deepEqual(Object.keys(operation.set), ['title']);
+      assert.notEqual(row.title, operation.set.title);
+      applyOperation(model, operation);
+      assert.equal(count(), before);
+    }
+    const toggle = next(cycle * 5 + 4);
+    assert.equal(toggle.id, model.bench_posts[1]._id);
+    assert.deepEqual(toggle.set, { active: cycle === 0 });
+    applyOperation(model, toggle);
+    assert.equal(count(), cycle === 0 ? 3 : 2);
+  }
+});
+
 test('membership-only dependent posts preserve the selected hundred IDs', () => {
   const model = fixture({ parents: 200, children: 1 });
   const initial = expectedState('dependent-posts', model).bench_posts;

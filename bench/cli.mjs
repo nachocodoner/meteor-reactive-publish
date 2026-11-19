@@ -57,6 +57,7 @@ const stringOptions = [
   'retention-every',
   'latency-budget',
   'cursor-dependencies',
+  'count-dependencies',
   'returned-cursor-strategy',
   'feed-tuning',
   'mutations',
@@ -105,6 +106,16 @@ function runOptions({ allowFanoutRate = false } = {}) {
   const cursorDependencies = values['cursor-dependencies'] || 'onFind';
   if (!['onFind', 'onRead'].includes(cursorDependencies))
     throw new Error('--cursor-dependencies must be onFind or onRead');
+  const countDependencies = values['count-dependencies'];
+  if (
+    countDependencies !== undefined &&
+    (!['documents', 'membership'].includes(countDependencies) ||
+      cursorDependencies !== 'onRead' ||
+      values.scenario !== 'derived-count')
+  )
+    throw new Error(
+      '--count-dependencies accepts documents or membership with --cursor-dependencies onRead and --scenario derived-count'
+    );
   const returnedCursorStrategy =
     values['returned-cursor-strategy'] || 'standard';
   if (!['standard', 'incremental'].includes(returnedCursorStrategy))
@@ -113,11 +124,17 @@ function runOptions({ allowFanoutRate = false } = {}) {
     );
   if (
     values.mutations !== undefined &&
-    (values.mutations !== 'membership-only' ||
-      !['one-to-many', 'dependent-posts'].includes(values.scenario))
+    !(
+      values.mutations === 'metadata-edits' &&
+      values.scenario === 'derived-count'
+    ) &&
+    !(
+      values.mutations === 'membership-only' &&
+      ['one-to-many', 'dependent-posts'].includes(values.scenario)
+    )
   )
     throw new Error(
-      '--mutations membership-only requires --scenario one-to-many or dependent-posts'
+      'Use membership-only with one-to-many/dependent-posts, or metadata-edits with derived-count'
     );
   const seed = Number(values.seed ?? 1);
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 0xffffffff)
@@ -151,6 +168,7 @@ function runOptions({ allowFanoutRate = false } = {}) {
     instrumentation: values.instrumentation || 'observers',
     lifecycle: !!values.lifecycle,
     cursorDependencies,
+    countDependencies,
     returnedCursorStrategy,
     parentProjection: feedTuning === 'parent-ids' || feedTuning === 'both',
     filterEquality: feedTuning === 'filter-equality' || feedTuning === 'both',
@@ -198,6 +216,9 @@ Use --meteor-cli /path/to/meteor/meteor for a Meteor Git checkout, including wor
 Comparisons are advisory; --gate explicitly enables provisional timing budgets after local calibration.
 Use --cursor-dependencies onFind|onRead and --returned-cursor-strategy standard|incremental for reactive autoruns.
 --mutations membership-only toggles a single selected ID in one-to-many or dependent-posts.
+--mutations metadata-edits mixes four field edits with one count change in derived-count.
+--count-dependencies documents|membership compares count behavior with --cursor-dependencies onRead.
+Use compare --mode count-dependencies for results generated from the same reactive source.
 --feed-tuning none|parent-ids|filter-equality|both chooses application code for the filtered-comments benchmark.
 --lifecycle adds optional Meteor 3.6+ method/publication/connection diagnostics; default is off.
 Comprehensive defaults: five pairs, 100 warmup + 1,000 operations, all ten common cases.

@@ -198,6 +198,12 @@ export function operationFor(name, index, model, mutations) {
     set,
     unset,
   });
+  if (name === 'derived-count' && mutations === 'metadata-edits') {
+    const [matching, toggled] = model.bench_posts;
+    return index % 5 === 4
+      ? update('bench_posts', toggled._id, { active: !toggled.active })
+      : update('bench_posts', matching._id, { title: `Edited ${revision}` });
+  }
   if (name === 'personalized-selectors') {
     // Every subscriber sees this mutation; private documents differ by author.
     // This isolates selector sharing without treating unaddressed clients as

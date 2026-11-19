@@ -11,6 +11,9 @@ declare module 'meteor/nachocodoner:reactive-publish' {
     /** In server Mongo autoruns, onFind (default) tracks cursor creation.
      * onRead tracks supported cursor reads. Returned cursors still publish live updates. */
     cursorDependencies?: 'onFind' | 'onRead';
+    /** Experimental. With onRead, a simple unpaginated server count can track entries
+     * and exits only. Other reads keep their usual document dependencies. */
+    countDependencies?: 'documents' | 'membership';
   }
 
   interface PublicationAutorunOptions extends CursorDependencyOptions {

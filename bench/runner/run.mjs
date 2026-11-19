@@ -80,6 +80,10 @@ export async function runBenchmark(options) {
       profile,
       seed,
       scenarioVersion,
+      ...(scenario === 'derived-count' &&
+        options.cursorDependencies === 'onRead' && {
+          countDependencies: options.countDependencies ?? 'documents',
+        }),
       ...feedOptions,
       ...(options.mutations && { mutations: options.mutations }),
       level: options.level || 'ddp',
@@ -186,6 +190,7 @@ export async function runBenchmark(options) {
           retention: options.retention,
           lifecycle: !!options.lifecycle,
           cursorDependencies: result.config.cursorDependencies,
+          countDependencies: result.config.countDependencies,
           returnedCursorStrategy: result.config.returnedCursorStrategy,
           ...feedOptions,
         }),

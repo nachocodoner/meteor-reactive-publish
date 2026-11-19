@@ -423,10 +423,11 @@ export function compatibilityKey(result, mode = 'regression') {
   // Within a side it must remain fixed; regression mode still rejects it.
   if (mode === 'library' || mode === 'cursor-dependencies')
     delete config.cursorDependencies;
+  if (mode === 'count-dependencies') delete config.countDependencies;
   if (mode === 'library' || mode === 'returned-cursor-strategy')
     delete config.returnedCursorStrategy;
-  const { source, packages, ...metadata } = result.metadata;
-  const stable = { ...metadata };
+  const { packages, ...stable } = result.metadata;
+  delete stable.source;
   delete stable.buildKey;
   delete stable.createdAt;
   // A candidate may itself cause observer fallback; keep that evidence in the
@@ -464,6 +465,10 @@ export function compareResults(
     'cursor-dependencies': {
       key: 'cursorDependencies',
       values: ['onFind', 'onRead', 'find', 'reads'],
+    },
+    'count-dependencies': {
+      key: 'countDependencies',
+      values: ['documents', 'membership'],
     },
     'returned-cursor-strategy': {
       key: 'returnedCursorStrategy',
@@ -509,6 +514,7 @@ export function compareResults(
         adapter: run.config.adapter,
         packages: run.metadata.packages,
         cursorDependencies: run.config.cursorDependencies ?? null,
+        countDependencies: run.config.countDependencies ?? null,
         returnedCursorStrategy: run.config.returnedCursorStrategy ?? null,
         source: ['reactive', 'installed'].includes(run.config.adapter)
           ? run.metadata.source?.hash

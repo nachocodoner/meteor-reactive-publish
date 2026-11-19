@@ -69,6 +69,28 @@ test('cursor dependency experiments require explicit modes and identical reactiv
   );
 });
 
+test('count-dependency comparisons keep the field-edit workload and each side fixed', () => {
+  const baseline = run();
+  Object.assign(baseline.config, {
+    scenario: 'derived-count',
+    mutations: 'metadata-edits',
+    cursorDependencies: 'onRead',
+    countDependencies: 'documents',
+  });
+  const target = structuredClone(baseline);
+  target.config.countDependencies = 'membership';
+  const compare = (left, right) =>
+    compareResults(left, right, { mode: 'count-dependencies' });
+  assert.doesNotThrow(() => compare([baseline], [target]));
+  assert.throws(() => compareResults([baseline], [target]), /Incompatible/);
+  assert.throws(
+    () => compare([baseline, baseline], [target, baseline]),
+    /identities within repeated runs/
+  );
+  delete target.config.mutations;
+  assert.throws(() => compare([baseline], [target]), /Incompatible/);
+});
+
 test('returned cursor comparison allows only the observer strategy to vary', () => {
   const standard = run();
   standard.config.cursorDependencies = 'onRead';

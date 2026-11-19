@@ -34,6 +34,8 @@ export function register(config, authorize) {
     const autorunOptions = {};
     if (config.cursorDependencies === 'onRead')
       autorunOptions.cursorDependencies = 'onRead';
+    if (config.countDependencies === 'membership')
+      autorunOptions.countDependencies = 'membership';
     if (config.returnedCursorStrategy === 'incremental')
       autorunOptions.returnedCursorStrategy = 'incremental';
     const autorun = (run) => pub.autorun(run, autorunOptions);
