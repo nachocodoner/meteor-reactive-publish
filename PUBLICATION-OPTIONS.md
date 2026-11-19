@@ -12,6 +12,8 @@ When an autorun returns a Mongo cursor, Meteor observes that query to keep the c
 
 Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`. The returned cursor strategy applies to publication autoruns.
 
+Multiple autoruns can query the same collection in one publication. Only one can return a cursor for that collection. In the dashboard, the count sends a number with `this.setData` and the pinned list returns the tickets cursor.
+
 All three options are included in the `1.2.0-beta.0` candidate.
 
 ## Publish a count
@@ -93,3 +95,16 @@ The example uses `'incremental'` on its own. Editing a saved post's title can st
 Incremental observation supports native server Mongo queries with one top-level `$in` containing up to 256 distinct string IDs. Additional top-level filters can be scalar equality conditions, and simple field projections are supported. Other queries use standard observation, including sorted or paginated windows, nested selectors, ObjectID lists, transforms and custom cursors. Keep the default `'standard'` strategy for short-lived subscriptions or lists that rarely change.
 
 **Expected gain.** On lists with small, frequent membership changes, the saved-post query used **about 61% less Meteor process CPU per write** and client update latency at p95 fell **about 52%**. A foreign-key join on `postId` used **about 24% less CPU**, with **about 17% shorter** p95 delivery. Both the standard and incremental runs used `cursorDependencies: 'onRead'`. Incremental observation opens more observers at subscription time. The foreign-key case also increased MongoDB reads to track documents that can move between groups. [Incremental observation measurements](./bench/PUBLICATION-MEASUREMENTS.md#incremental-observation)
+
+## Compare filters by value
+
+A polling service may return a fresh filter object with the same values on every refresh. When an autorun reads that filter from a `ReactiveVarAsync`, supply `EJSON.equals` to compare its contents. This works with the default autorun settings.
+
+```js
+import { EJSON } from 'meteor/ejson';
+import { ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
+
+const filter = new ReactiveVarAsync({ category: 'news' }, EJSON.equals);
+```
+
+Setting the filter to another `{ category: 'news' }` leaves the feed alone. Setting it to `{ category: 'events' }` reruns the query. [Filter equality and parent projection measurements](./bench/PUBLICATION-MEASUREMENTS.md#application-level-tuning)
