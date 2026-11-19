@@ -61,6 +61,45 @@ The default sorted-window workload also ran against `f95cf57` and the nested lif
 
 Four longer pairs compared the final runtime (`3bc939f`) with the same baseline, using 60 warmup writes and 400 measured writes per run. Both builds executed 3,200 autoruns, opened zero new observer handles during those writes, and sent identical DDP traffic. The candidate averaged **4.5% more CPU per write** and **3.7% longer p95 client update time**. Three CPU pairs differed by about 2% or less. The fourth measured 20.8% more CPU per write. The harness classifies the timing result as inconclusive. To repeat these runs from `3bc939f`, use the sorted-window command with `--base f95cf57 --warmup 60 --operations 400 --pairs 4`. [Benchmark command](./README.md#reproduce-the-default-upgrade-comparison)
 
+### Do flat publications pay for nesting?
+
+Eight Meteor 3.6 workloads compared the release candidate before nested lifecycle support (`f95cf57`) with the documented candidate (`3c921c8`). Each workload ran in six independent pairs, alternating which revision ran first. Both sides used the same four subscribers, fixture, seed, harness and observer instrumentation. Each run started a fresh app and Mongo replica set. The machine ran one benchmark at a time.
+
+| Flat publication | CPU baseline → candidate (ms/op) | CPU change (95% interval) | Client p95 baseline → candidate (ms) |
+| --- | ---: | ---: | ---: |
+| Sorted and limited cursor | 4.06 → 4.16 | +2.5% (-7.4% to +13.5%) | 2.66 → 2.70 |
+| Two sibling autoruns | 9.08 → 9.08 | +0.1% (-4.5% to +4.6%) | 14.55 → 14.76 |
+| Awaited lookup returning cursors | 16.24 → 15.80 | -2.7% (-4.3% to -1.7%) | 16.83 → 16.62 |
+| Subscribe and unsubscribe | 7.43 → 6.95 | -6.4% (-8.6% to -4.3%) | 4.00 → 3.92 |
+| Reactive count, default settings | 5.52 → 5.41 | -2.1% (-4.7% to +0.3%) | 5.29 → 5.26 |
+| Posts and comments with `onRead` | 6.86 → 6.74 | -1.8% (-6.7% to +2.4%) | 10.40 → 10.54 |
+| Saved IDs with `onRead` and `incremental` | 7.12 → 7.02 | -1.4% (-3.3% to +0.2%) | 7.32 → 7.27 |
+| Count with `membership` | 4.37 → 4.22 | -3.3% (-6.3% to -0.4%) | 6.43 → 6.73 |
+
+The CPU interval is the harness’s approximate 95% paired bootstrap interval for the mean difference, expressed as a percentage of the baseline mean. Client p95 measures delivery of a changed result, except for subscribe/unsubscribe, where it measures readiness. In six additional sorted-window pairs with identical baseline code on both sides, CPU differed by 5.9% and p95 delivery by 1.2%.
+
+All 96 before/after runs and 12 calibration runs delivered the expected client documents and released their resources after unsubscribe. Every pair matched exactly on autorun executions, observer creation and disposal, retained callbacks, DDP messages and payload bytes. No measured metric crossed the harness’s regression threshold. For the sorted window, the CPU estimate was **+0.10 ms/write** and its interval extended to **+0.55 ms/write**. A small increase remains possible. The largest observed p95 increase was **0.30 ms** for the membership count.
+
+To reproduce a row, run the following command from `3c921c8`, substituting its scenario, fixture sizes and options from the table below. Give each comparison its own output directory. For the calibration, add `--source /path/to/f95cf57-checkout`.
+
+```sh
+node bench/cli.mjs paired --meteor 3.6 --adapter reactive --base f95cf57 \
+  --scenario sorted-window --clients 4 --parents 200 --children 4 \
+  --warmup 60 --operations 400 --observation 40 --timeout 30000 \
+  --seed 1 --pairs 6 --gate --output bench/results/flat-sorted-window
+```
+
+| Scenario | Parents / children per parent | Warmup / measured operations | Additional flags |
+| --- | ---: | ---: | --- |
+| `sorted-window` | 200 / 4 | 60 / 400 | |
+| `multiple-autoruns` | 24 / 2 | 30 / 160 | |
+| `async-pressure` | 24 / 2 | 30 / 160 | |
+| `subscription-churn` | 16 / 2 | 20 / 80 | |
+| `derived-count` | 24 / 2 | 30 / 160 | |
+| `one-to-many` | 24 / 2 | 30 / 160 | `--cursor-dependencies onRead` |
+| `dependent-posts` | 200 / 4 | 30 / 120 | `--cursor-dependencies onRead --returned-cursor-strategy incremental --mutations membership-only` |
+| `derived-count` | 24 / 2 | 30 / 160 | `--count-dependencies membership --mutations metadata-edits` |
+
 ## Application-level tuning
 
 The parent-projection and comparator checks used application-level changes with the beta publication options left at their defaults. Eight title changes triggered eight reruns when the parent query fetched full posts and zero when it selected only post IDs. Both readers reacted to a change of owner. [Projection test](../lib/CursorDependencyModes.tests.js)
