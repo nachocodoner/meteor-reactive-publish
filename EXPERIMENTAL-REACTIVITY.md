@@ -1,6 +1,6 @@
 # Tuning publication autoruns
 
-In 1.2.0-beta.0, existing publications reuse observers for unchanged returned cursors, drop obsolete dependencies, and release retired cursors' cleanup callbacks. Start with the defaults. Consider the following options when a busy publication repeatedly reads the same parents or changes a list of related IDs.
+Upgrading to 1.2.0-beta.0 automatically reuses observers for unchanged returned cursors, drops obsolete dependencies, and releases retired cursors' cleanup callbacks. The beta also adds two opt-in publication settings. You enable either one when registering a function with `Meteor.publishReactive` or `this.autorun`.
 
 | Option | Default | When to opt in |
 | --- | --- | --- |
@@ -56,45 +56,6 @@ Keep `'onFind'` when an unconsumed `find()` declares a dependency for an aggrega
 In a beta comparison with four subscribers and 120 mixed writes to posts and comments, changing only `'onFind'` to `'onRead'` cut autorun executions from **320 to 160 (50% fewer)**. Application CPU per write fell from 27.53 to 18.40 ms (**33.1% less**). Both runs used `'standard'` observation and delivered the same 1,240 DDP messages and 134,679 payload bytes. The timing comes from one run per mode.
 
 An earlier experiment repeated each mode six times with ten subscribers and 200 writes per run. Read tracking reduced application CPU by **35.9%** for a one-to-many join (23.16 to 14.86 ms/write) and by **6.8%** for a three-collection join (25.02 to 23.31 ms/write). In the deeper join, the function *reads* comments to find their authors, so comment changes still rerun it. [Benchmark commands](./bench/README.md)
-
-## Two ways to avoid redundant reruns with existing APIs
-
-Both choices are opt-in and independent. Specify a projection on the individual parent query. Specify an equality function when creating the reactive variable that holds the filter. All subscribers reading that variable share its comparison rule.
-
-**Read only the parent fields that affect the join.** In `commentsOnMyPosts`, the parent query uses `{ fields: { _id: 1 } }` because the child selector needs only post IDs. If a title changes, the IDs are still the same. If a post changes owner, the selector's membership changes and the comments update. A regression compares the same parent read with and without this projection using default package settings. Eight successive title edits cause eight extra executions with full documents and zero with the ID projection. Both readers rerun on the ownership change. A function that uses the title must include it in the projection. [Projection test](./lib/CursorDependencyModes.tests.js)
-
-**Skip duplicate values from an external source.** Suppose a settings service refreshes the category of a site-wide public feed. It sends a fresh object on every poll. Set an equality function on the `ReactiveVarAsync` that holds that filter.
-
-```js
-import { EJSON } from 'meteor/ejson';
-import { ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
-
-const feedFilter = new ReactiveVarAsync({ category: 'news' }, EJSON.equals);
-
-Meteor.publishReactive('publicFeed', () => {
-  const { category } = feedFilter.get();
-  return Posts.find({ visibility: 'public', category });
-});
-
-async function applyFeedSettings({ category }) {
-  await feedFilter.set({ category });
-}
-```
-
-The default equality check treats an object assignment as a change. With this comparator, receiving `'news'` again keeps the current value and skips every dependent autorun. Receiving `'events'` updates the feed. Pass a fresh object for each refresh and compare every field your consumers need. In the package test, eight equivalent refreshes plus one real category change caused **nine reruns by default and one with `EJSON.equals`**. Both readers saw the new category. [Equality test](./lib/ReactiveAsync/ReactiveVarAsync.tests.js)
-
-### What these choices saved on a live feed
-
-Four subscribers watched comments on posts selected by a shared `{ active }` filter. Each run used 200 posts, four comments per post and 120 operations. Every four operations included an equivalent filter refresh, a parent title edit, a real filter switch and a comment edit. Five rounds on Meteor 3.6 compared the same publication in all four configurations, with both autorun options at their defaults.
-
-| Application code | Autorun executions per run | Application CPU per operation | CPU reduction from default |
-| --- | ---: | ---: | ---: |
-| Full parent documents, default filter equality | 480 | 22.96 ms | Baseline |
-| Project parent IDs only | 360 | 21.16 ms | **7.8%** |
-| Use `EJSON.equals` for the filter only | 360 | 21.81 ms | **5.0%** |
-| Use both | 240 | 20.71 ms | **9.8%** |
-
-With both tunings, the publication skipped **half its executions**. The 60 operations that changed visible comments still had to reach all four clients. Every run delivered the same 96,480 DDP messages and 10,478,825 payload bytes. Client update p95 was 61.03 ms with the defaults and 60.86 ms with both choices. This workload showed a server CPU saving with similar client latency. [Run the four-way comparison](./bench/README.md#compare-parent-projections-and-filter-equality)
 
 ## Decide how to observe a changing list
 
@@ -158,3 +119,42 @@ Four subscribers watched the same data on Meteor 3.6. Each run changed one selec
 | Comments selected by `postId` | 36.01 → 27.39 ms (**23.9% less**) | 30.77 → 25.47 ms (**17.2% shorter**) | 14.24 → 15.79 ms | 12 → 40 |
 
 In a separate 36-write Mongo profile, the saved-posts case used **40% fewer reads** per write (10 to 6). For the foreign-key query, the extra membership observer increased reads **13.8%** (14.5 to 16.5). Start with the saved-ID case if repeated changes to a long-lived list are expensive. Measure both application and database costs for foreign-key queries. [Reproduce the benchmark](./bench/README.md)
+
+## Optional application code changes
+
+These are application tuning suggestions. Both APIs were already available in 1.1.1. To use the first, edit the parent query inside your publication function. To use the second, edit the code that constructs your reactive variable. The comparison rule applies to all subscribers reading that variable. You can use either beta publication setting without making these edits.
+
+**Read only the parent fields that affect the join.** In `commentsOnMyPosts`, the parent query uses `{ fields: { _id: 1 } }` because the child selector needs only post IDs. If a title changes, the IDs are still the same. If a post changes owner, the selector's membership changes and the comments update. A regression compares the same parent read with and without this projection using default package settings. Eight successive title edits cause eight extra executions with full documents and zero with the ID projection. Both readers rerun on the ownership change. A function that uses the title must include it in the projection. [Projection test](./lib/CursorDependencyModes.tests.js)
+
+**Skip duplicate values from an external source.** Suppose a settings service refreshes the category of a site-wide public feed. It sends a fresh object on every poll. Set an equality function on the `ReactiveVarAsync` that holds that filter.
+
+```js
+import { EJSON } from 'meteor/ejson';
+import { ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
+
+const feedFilter = new ReactiveVarAsync({ category: 'news' }, EJSON.equals);
+
+Meteor.publishReactive('publicFeed', () => {
+  const { category } = feedFilter.get();
+  return Posts.find({ visibility: 'public', category });
+});
+
+async function applyFeedSettings({ category }) {
+  await feedFilter.set({ category });
+}
+```
+
+The default equality check treats an object assignment as a change. With this comparator, receiving `'news'` again keeps the current value and skips every dependent autorun. Receiving `'events'` updates the feed. Pass a fresh object for each refresh and compare every field your consumers need. In the package test, eight equivalent refreshes plus one real category change caused **nine reruns by default and one with `EJSON.equals`**. Both readers saw the new category. [Equality test](./lib/ReactiveAsync/ReactiveVarAsync.tests.js)
+
+### What these choices saved on a live feed
+
+Four subscribers watched comments on posts selected by a shared `{ active }` filter. Each run used 200 posts, four comments per post and 120 operations. Every four operations included an equivalent filter refresh, a parent title edit, a real filter switch and a comment edit. Five rounds on Meteor 3.6 compared the same publication in all four configurations, with both autorun options at their defaults.
+
+| Application code | Autorun executions per run | Application CPU per operation | CPU reduction from default |
+| --- | ---: | ---: | ---: |
+| Full parent documents, default filter equality | 480 | 22.96 ms | Baseline |
+| Project parent IDs only | 360 | 21.16 ms | **7.8%** |
+| Use `EJSON.equals` for the filter only | 360 | 21.81 ms | **5.0%** |
+| Use both | 240 | 20.71 ms | **9.8%** |
+
+With both tunings, the publication skipped **half its executions**. The 60 operations that changed visible comments still had to reach all four clients. Every run delivered the same 96,480 DDP messages and 10,478,825 payload bytes. Client update p95 was 61.03 ms with the defaults and 60.86 ms with both choices. This workload showed a server CPU saving with similar client latency. [Run the four-way comparison](./bench/README.md#compare-parent-projections-and-filter-equality)

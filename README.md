@@ -30,7 +30,7 @@ meteor add nachocodoner:reactive-publish@=1.2.0-beta.0
 
 Existing publications gain observer reuse and earlier cleanup on upgrade. In a publication returning the two highest-scoring posts, upgrading from 1.1.1 to the beta with default settings used **29.7% less application CPU per write**. The client received updates **27.3% sooner at p95**. Both versions delivered the same documents and DDP traffic across five paired runs. [Default upgrade measurements](./EXPERIMENTAL-REACTIVITY.md#what-an-upgrade-gives-you-by-default)
 
-For finer control, pass options when creating a publication autorun. For example, this function publishes comments on posts the subscriber owns. Editing a comment updates the client directly. Adding or removing an owned post reruns the function because it reads the post IDs.
+`cursorDependencies` and `returnedCursorStrategy` are the two opt-in publication settings introduced in the beta. Pass either setting to `Meteor.publishReactive` or `this.autorun` when registering your existing function. Here the function reads owned post IDs and returns their comments. With `'onRead'`, editing a comment updates the client directly, and adding or removing an owned post reruns the function.
 
 ```js
 async function commentsOnMyPosts() {
@@ -52,7 +52,7 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 
 The default `'onFind'` also reruns for changes to a cursor that your function only creates. Keep it when those reruns drive derived work. In a mixed-write benchmark, `'onRead'` cut autorun executions by **50%** with identical client traffic. For long-lived saved-ID lists, `returnedCursorStrategy: 'incremental'` used **60.9% less application CPU per membership change** across five paired runs, at the cost of a slower initial subscription. Each option applies to one autorun. [Performance guide and measurements](./EXPERIMENTAL-REACTIVITY.md)
 
-You can also tune a feed while keeping both autorun defaults. Project `{ _id: 1 }` on a parent query when the join needs only IDs. Pass `EJSON.equals` to the individual `ReactiveVarAsync` when a poller sends fresh objects with equivalent filter values. Each choice is independent. [Working example and results](./EXPERIMENTAL-REACTIVITY.md#two-ways-to-avoid-redundant-reruns-with-existing-apis)
+The guide also gives two suggestions for editing your own application code using existing APIs. One changes the fields a Mongo query reads, and the other changes how a reactive variable compares incoming values. [Optional application code changes](./EXPERIMENTAL-REACTIVITY.md#optional-application-code-changes)
 
 ### Reactive Composed Data Publish
 
