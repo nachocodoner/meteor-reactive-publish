@@ -32,7 +32,7 @@ The 1.2 beta includes all three publication options below.
 
 The 1.2 beta reuses observers for unchanged cursors and cleans up obsolete dependencies automatically. In a comparison with 1.1.1, the beta used **about 30% less Meteor process CPU per write** for a sorted publication that kept returning the same query. Both runs used default settings. [Default upgrade measurements](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
-You can enable each option independently on the autorun that needs it.
+Each option belongs to one autorun. `Meteor.publishReactive(name, fn, options)` runs `fn` in a single autorun with those settings. For a publication with several autoruns, pass options to each `this.autorun(fn, options)` call that needs them. [One publication with a count and a paginated list](#infinite-scrolling-and-counts)
 
 | Your publication | Option | Expected benefit |
 | --- | --- | --- |
@@ -123,7 +123,7 @@ Meteor.publish('recent-posts', function () {
 
 #### Multiple autoruns
 
-This example shows define multiple autoruns for more efficient reactive triggers.
+The posts and addresses each have their own autorun. The posts autorun uses incremental observation because the user's list of saved post IDs changes frequently and contains string IDs. The addresses autorun uses the defaults.
 
 ```javascript
 Meteor.publish('users-posts-and-addresses', function (userId) {
@@ -132,7 +132,7 @@ Meteor.publish('users-posts-and-addresses', function (userId) {
       fields: { posts: 1 },
     });
     return Posts.find({ _id: { $in: user?.posts || [] } });
-  });
+  }, { returnedCursorStrategy: 'incremental' });
 
   this.autorun(async () => {
     const user = await Users.findOneAsync(userId, {
@@ -149,7 +149,7 @@ These examples show how to publish derived data reactively, allowing clients to 
 
 #### Infinite scrolling and counts
 
-This example shows how to publish a collection with a reactive total count and allow the client to increase the limit of published items without restarting the subscription.
+One subscription publishes both the total number of posts and a page of results. Both autoruns can query `Posts`, but only one can return a cursor for that collection. The count autorun publishes its number through `this.setData`. The list autorun reads the page limit and returns the live cursor.
 
 Server:
 ```javascript
@@ -170,11 +170,11 @@ Meteor.publish('posts.infiniteScroll', function () {
     const limit = Number(await this.data('limit')) || 10;
     check(limit, Number);
     return Posts.find({}, { limit, sort: { createdAt: -1 } });
-  });
+  }, { cursorDependencies: 'onRead' });
 });
 ```
 
-Membership tracking enables read tracking for the count autorun. Inserts and deletions still update the total. The second autorun keeps its own defaults for the paginated list.
+Increasing the limit reruns only the list autorun. Editing a visible post's title reaches the client through the returned cursor and skips both autorun bodies. Inserting or deleting a post updates the total, and the cursor keeps the visible page in sync.
 
 Client (Tracker):
 ```javascript

@@ -10,7 +10,9 @@ Choose the option that matches the work your publication repeats.
 | Reads parent documents to select a live child cursor | `cursorDependencies: 'onRead'` | Rerunning the parent query when a child changes. |
 | Returns a long-lived cursor over a changing list of IDs | `returnedCursorStrategy: 'incremental'` | Rebuilding observers for IDs that stay on the list. |
 
-Pass the option as the third argument to `Meteor.publishReactive(name, fn, options)` or the second argument to `this.autorun(fn, options)`. Each sibling or nested autorun chooses its own settings. Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`.
+`Meteor.publishReactive(name, fn, options)` creates one implicit autorun for `fn`. Inside a regular `Meteor.publish`, each `this.autorun(fn, options)` chooses its own settings. For example, one autorun can track count membership while another uses `'onRead'` for a paginated list. A sibling or nested autorun that omits its options uses the defaults. [Count and list in one subscription](./README.md#infinite-scrolling-and-counts)
+
+Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`. The returned cursor strategy applies to publication autoruns.
 
 All three options are included in the `1.2.0-beta.0` candidate.
 
