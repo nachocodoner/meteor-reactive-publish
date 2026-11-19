@@ -40,14 +40,15 @@ async function files(root, relative = '') {
 }
 
 export async function sourceInfo(source) {
+  const declarations = (await fs.readdir(source)).filter(
+    (name) => name.endsWith('.d.ts') || name === 'package-types.json'
+  );
   const names = [
     'package.js',
     'main.js',
+    ...declarations,
     ...(await files(path.join(source, 'lib'))).map((name) => `lib/${name}`),
   ];
-  for (const optional of ['index.d.ts', 'package-types.json'])
-    if (await fs.stat(path.join(source, optional)).catch(() => null))
-      names.push(optional);
   const digest = createHash('sha256');
   for (const name of names.sort()) {
     digest.update(name);

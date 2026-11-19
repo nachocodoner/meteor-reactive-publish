@@ -11,7 +11,7 @@ import {
   assertRuntimeUnchanged,
 } from '../runner/runtime.mjs';
 import { command } from '../runner/process.mjs';
-import { buildApp } from '../runner/build.mjs';
+import { buildApp, sourceInfo } from '../runner/build.mjs';
 
 const git = (cwd, ...args) => command('git', args, { cwd });
 const commit = (cwd) =>
@@ -44,6 +44,29 @@ async function checkout(t) {
   await commit(root);
   return { root, meteorCli: path.join(root, 'meteor') };
 }
+
+test('benchmark package snapshots include declarations from the selected revision', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bench-package-types-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.mkdir(path.join(root, 'lib'));
+  const legacy = ['index.d.ts', 'main.js', 'package-types.json', 'package.js'];
+  for (const name of legacy) await fs.writeFile(path.join(root, name), '');
+  assert.deepEqual((await sourceInfo(root)).names, legacy);
+
+  const shared = path.join(root, 'reactive-publish.d.ts');
+  await fs.writeFile(shared, 'export interface Options {}');
+  await fs.writeFile(
+    path.join(root, 'index.native.d.ts'),
+    "export * from './reactive-publish';"
+  );
+  const native = await sourceInfo(root);
+  assert.deepEqual(
+    native.names,
+    [...legacy, 'index.native.d.ts', 'reactive-publish.d.ts'].sort()
+  );
+  await fs.appendFile(shared, '\nexport type Count = number;');
+  assert.notEqual((await sourceInfo(root)).hash, native.hash);
+});
 
 test('release selection is explicit and cannot be mixed with a checkout', async () => {
   const runtime = await resolveMeteorRuntime({ meteor: '3.5.2' });
