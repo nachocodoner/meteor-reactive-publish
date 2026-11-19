@@ -12,7 +12,22 @@
 
 🔥 [**Learn about the motivation**](./MOTIVATION.md) for reviving this package for Meteor 3.
 
-🗺️ [**Explore the roadmap**](#roadmap) for future updates and support.
+## Contents
+
+- [Installation](#installation)
+- [Usage examples](#usage)
+  - [Publish related documents](#reactive-composed-data-publish)
+  - [Two autoruns in one publication](#two-autoruns-in-one-publication)
+  - [Nest an autorun inside a lookup](#nest-an-autorun-inside-a-lookup)
+  - [Publish derived data](#reactive-derived-data-publish)
+- [Choosing an autorun option](#choosing-an-autorun-option)
+  - [Recount when documents enter or leave a query](#recount-when-documents-enter-or-leave-a-query)
+  - [Return a live cursor without repeating the lookup](#return-a-live-cursor-without-repeating-the-lookup)
+  - [Reuse observers when a list of IDs changes](#reuse-observers-when-a-list-of-ids-changes)
+- [TypeScript support](#typescript-support)
+- [Development and testing](#development)
+- [Roadmap](#roadmap)
+- [Acknowledgments](#acknowledgments)
 
 ## Installation
 
