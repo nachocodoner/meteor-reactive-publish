@@ -247,19 +247,35 @@ export default function AuthorStats() {
 
 The 1.2 beta offers three options per autorun. `countDependencies` and `cursorDependencies` control which changes make it run again. `returnedCursorStrategy` controls how Meteor watches the returned documents when the query changes.
 
-To try them in `myFeed`, keep the `userId` check in `Meteor.publish` and replace the two original autoruns with the ones below. [Original feed with default settings](#two-autoruns-in-one-publication)
+Each example is a complete server module for a feed in an app with Meteor accounts. A user's `subscribedPosts` field holds an array of post IDs. Each notification has a `userId` and a boolean `read` field. The publications share these collections, defined once in `/imports/api/collections.js`.
+
+```javascript
+import { Mongo } from 'meteor/mongo';
+
+export const Posts = new Mongo.Collection('posts');
+export const Notifications = new Mongo.Collection('notifications');
+```
 
 ### Recount when documents enter or leave a query
 
 Use `countDependencies: 'membership'` when an autorun publishes a count. For a plain `countAsync()` query, it tracks which document IDs match. Edits that leave the same IDs in the result can skip the recount.
 
-In `myFeed`, editing an unread notification's text leaves the badge unchanged. Marking it as read takes it out of the query, so the autorun recounts and the badge drops by one.
+For an unread badge, editing a notification's text leaves the count unchanged. Marking it as read takes it out of the query, so the autorun recounts and the badge drops by one.
 
 ```javascript
-this.autorun(async () => {
-  const count = await Notifications.find({ userId, read: false }).countAsync();
-  await this.setData('unreadCount', count);
-}, { countDependencies: 'membership' });
+import { Meteor } from 'meteor/meteor';
+import { Notifications } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.unreadCount', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+    this.ready();
+  }, { countDependencies: 'membership' });
+});
 ```
 
 Membership enables read tracking automatically. In a benchmark where four out of five writes only edited a title, it produced **80% fewer autorun executions** and used **about 30% less server CPU per write**. Delivery of counts that did change took about 9% longer at the 95th percentile. [Count benchmark](./bench/COUNT-MEMBERSHIP.md#measured-effect)
@@ -268,17 +284,26 @@ Membership enables read tracking automatically. In a benchmark where four out of
 
 Use `cursorDependencies: 'onRead'` when an autorun reads data to decide which cursor to return. By default, calling `find()` also makes the autorun depend on that cursor's results. With `'onRead'`, the lookup stays reactive and the returned cursor can deliver its own updates without repeating the lookup.
 
-In `myFeed`, editing a post's title sends the new title straight to the client. Changing the user's `subscribedPosts` still reruns the function because it reads that list to choose the posts.
+In this feed, editing a post's title sends the new title straight to the client. Changing the user's `subscribedPosts` still reruns the function because it reads that list to choose the posts.
 
 ```javascript
-async function publishSubscribedPosts() {
-  const user = await Meteor.users.findOneAsync(userId, {
-    fields: { subscribedPosts: 1 },
-  });
-  return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
-}
+import { Meteor } from 'meteor/meteor';
+import { Posts } from '/imports/api/collections.js';
 
-this.autorun(publishSubscribedPosts, { cursorDependencies: 'onRead' });
+Meteor.publish('myFeed.subscribedPosts', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find(
+      { _id: { $in: user?.subscribedPosts || [] } },
+      { fields: { title: 1 } }
+    );
+  }, { cursorDependencies: 'onRead' });
+});
 ```
 
 A join that read posts and returned comments ran **50% fewer times** with `'onRead'` and delivered the same client updates. If the function also reads the comments to compute a value, edits to those comments still rerun it. [Read-tracking benchmark](./bench/PUBLICATION-MEASUREMENTS.md#read-tracking)
@@ -287,13 +312,33 @@ A join that read posts and returned comments ran **50% fewer times** with `'onRe
 
 Use `returnedCursorStrategy: 'incremental'` for a long-lived `$in` query when a few string IDs change at a time. The autorun still reruns to publish the new list. The server saves work on that run by keeping the observers that watch unchanged groups of IDs.
 
-When a reader subscribes to one more post, `myFeed` updates the query and keeps watching groups of posts that stayed on the list. Here we also keep `'onRead'` so title edits skip the user lookup. Either option can be used on its own.
+This version of the feed publishes posts and the unread badge together. When a reader subscribes to one more post, the posts autorun updates its query and reuses observers. It also uses `'onRead'` so title edits skip the user lookup. The count autorun chooses `'membership'` independently.
 
 ```javascript
-// Replace the posts autorun call above. The badge keeps its own settings.
-this.autorun(publishSubscribedPosts, {
-  cursorDependencies: 'onRead',
-  returnedCursorStrategy: 'incremental',
+import { Meteor } from 'meteor/meteor';
+import { Notifications, Posts } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.withOptions', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find(
+      { _id: { $in: user?.subscribedPosts || [] } },
+      { fields: { title: 1 } }
+    );
+  }, {
+    cursorDependencies: 'onRead',
+    returnedCursorStrategy: 'incremental',
+  });
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+  }, { countDependencies: 'membership' });
 });
 ```
 
@@ -301,7 +346,22 @@ In the saved-post benchmark, adding this option to `'onRead'` used **about 61% l
 
 ### Multiple autoruns
 
-With `Meteor.publish`, each `this.autorun(fn, options)` gets its own settings. With `Meteor.publishReactive(name, fn, options)`, the options apply to its single autorun. The guide shows both feed autoruns together and a ticket dashboard with a third autorun for pagination. [Complete two-autorun feed](./PUBLICATION-OPTIONS.md#set-options-on-individual-autoruns) · [Ticket dashboard](./PUBLICATION-OPTIONS.md#a-ticket-dashboard-with-three-autoruns)
+The client subscribes once for both autoruns. This client module reads the posts from Minimongo and the count from the subscription when the feed first becomes ready.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Posts } from '/imports/api/collections.js';
+
+const sub = Meteor.subscribe('myFeed.withOptions', {
+  async onReady() {
+    const posts = await Posts.find().fetchAsync();
+    const unreadCount = await sub.data('unreadCount');
+    console.log({ posts, unreadCount });
+  },
+});
+```
+
+Each `this.autorun(fn, options)` on the server has its own settings. With `Meteor.publishReactive(name, fn, options)`, the settings apply to its single autorun. [Ticket dashboard with three autoruns](./PUBLICATION-OPTIONS.md#a-ticket-dashboard-with-three-autoruns)
 
 The beta also saves work with the defaults. In a sorted feed benchmark it used **about 30% less server CPU per write** than 1.1.1 while sending identical updates. [Default upgrade benchmark](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
