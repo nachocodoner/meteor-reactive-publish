@@ -1,6 +1,6 @@
 # Publication performance measurements
 
-These comparisons cover default upgrades, cursor reads, incremental observation and application-level tuning. Each percentage applies to the workload and baseline in its section. [Publication options](../PUBLICATION-OPTIONS.md) · [Reactive count measurements](./COUNT-MEMBERSHIP.md#measured-effect)
+These comparisons cover default upgrades, cursor reads, incremental observation, nested autoruns and application-level tuning. Each percentage applies to the workload and baseline in its section. [Publication options](../PUBLICATION-OPTIONS.md) · [Reactive count measurements](./COUNT-MEMBERSHIP.md#measured-effect)
 
 ## What an upgrade gives you by default
 
@@ -41,6 +41,25 @@ Four subscribers watched the same data on Meteor 3.6. Each run changed one selec
 | Comments selected by `postId` | 36.01 → 27.39 ms (**23.9% less**) | 30.77 → 25.47 ms (**17.2% shorter**) | 14.24 → 15.79 ms | 12 → 40 |
 
 In a separate 36-write Mongo profile, the saved-posts case used **40% fewer reads** per write (10 to 6). For the foreign-key query, the extra membership observer increased reads **13.8%** (14.5 to 16.5). Start with the saved-ID case if repeated changes to a long-lived list are expensive. Measure both application and database costs for foreign-key queries. [Reproduce the benchmark](./README.md)
+
+## Nested autoruns
+
+One Meteor 3.6 DDP subscriber watched an item selected by two inputs. A Mongo lookup supplied the group ID, and a reactive filter selected the item within that group. The flat publication read both inputs in one autorun. The nested publication read the group in the parent and applied the filter in one child. Both used `cursorDependencies: 'onRead'` and standard cursor observation.
+
+Four paired trials alternated the two publications. Each group had one item for each filter value, 0 or 1. The same-selector check changed the input while clamping the effective filter to 1. Each row shows the server work for 20 updates of the indicated kind. The client received the same documents in both versions.
+
+| Update | Flat publication | Nested publication |
+| --- | --- | --- |
+| Change the child filter | 20 group lookups | 0 group lookups |
+| Switch the selected group | 20 runs of the single autorun | 20 parent runs, each stopping the old child and starting a new one |
+| Edit a field on the published item | 0 autorun executions | 0 autorun executions |
+| Change the filter input but keep the same effective selector | 0 new observer handles | 0 new observer handles |
+
+Nesting saved the parent lookup when the child filter changed independently. A frequently changing parent paid for child setup on every switch. Each child now reuses its own cursor when the selector and options stay the same. The previous beta candidate (`f95cf57`) created 20 observer handles on that last workload. [Complete nested publication](../README.md#nest-an-autorun-inside-a-lookup)
+
+The default sorted-window workload also ran against `f95cf57` and the nested lifecycle changes. With four subscribers and 120 measured writes, both builds executed 960 autoruns, created zero observer handles during those writes, retained 17 cleanup callbacks and sent the same 1,320 DDP messages and 148,632 payload bytes. The four short pairs averaged 7.0% more Meteor CPU per write on the candidate.
+
+Four longer pairs compared the final runtime (`3bc939f`) with the same baseline, using 60 warmup writes and 400 measured writes per run. Both builds executed 3,200 autoruns, opened zero new observer handles during those writes, and sent identical DDP traffic. The candidate averaged **4.5% more CPU per write** and **3.7% longer p95 client update time**. Three CPU pairs differed by about 2% or less. The fourth measured 20.8% more CPU per write. The harness classifies the timing result as inconclusive. To repeat these runs from `3bc939f`, use the sorted-window command with `--base f95cf57 --warmup 60 --operations 400 --pairs 4`. [Benchmark command](./README.md#reproduce-the-default-upgrade-comparison)
 
 ## Application-level tuning
 

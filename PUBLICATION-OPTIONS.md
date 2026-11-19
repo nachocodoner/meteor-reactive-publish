@@ -35,7 +35,7 @@ Meteor.publish('myFeed', function () {
 
 Editing a post's title reaches the client through the returned cursor. With `'onRead'`, the first autorun skips looking up the user again. Marking a notification as read changes which IDs match, so the second autorun updates the count. Editing the notification's text leaves the count alone.
 
-Each sibling or nested autorun that omits its options uses the defaults. Multiple autoruns can query the same collection, and only one can return a cursor for that collection. The ticket dashboard also shows how to combine read tracking with incremental observation in a single autorun. [Dashboard with three autoruns](#a-ticket-dashboard-with-three-autoruns)
+Each sibling or nested autorun that omits its options uses the defaults. Nesting is useful when a child needs a parent's lookup result and also reacts to a separate input, such as a page size. Multiple autoruns can query the same collection, and only one can return a cursor for that collection. [Feed with a nested autorun](./README.md#nest-an-autorun-inside-a-lookup) · [Dashboard with three independent autoruns](#a-ticket-dashboard-with-three-autoruns)
 
 Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`. The returned cursor strategy applies to publication autoruns.
 

@@ -70,7 +70,7 @@ Meteor.publish('myFeed', function () {
 });
 ```
 
-The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, and it can read the count with `sub.data('unreadCount')`. [Choose an option for each autorun](#choosing-an-autorun-option).
+The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, and it can read the count with `sub.data('unreadCount')`. [Choose an option for each autorun](#choosing-an-autorun-option) · [Nest an autorun inside a lookup](#nest-an-autorun-inside-a-lookup)
 
 #### Time-based queries
 
@@ -364,6 +364,56 @@ const sub = Meteor.subscribe('myFeed.withOptions', {
 Each `this.autorun(fn, options)` on the server has its own settings. With `Meteor.publishReactive(name, fn, options)`, the settings apply to its single autorun. [Ticket dashboard with three autoruns](./PUBLICATION-OPTIONS.md#a-ticket-dashboard-with-three-autoruns)
 
 The beta also saves work with the defaults. In a sorted feed benchmark it used **about 30% less server CPU per write** than 1.1.1 while sending identical updates. [Default upgrade benchmark](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
+
+### Nest an autorun inside a lookup
+
+Nest `this.autorun` when a child query depends on its parent's result and also has a reason to rerun on its own. In this feed the parent reads which posts the user follows. The child reads the requested page size and returns that many posts. Loading more reruns only the child, so the server skips the user lookup.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Posts } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.pagedPosts', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    const postIds = user?.subscribedPosts || [];
+    if (postIds.length === 0) return [];
+
+    this.autorun(async () => {
+      const limit = (await this.data('showMore')) === true ? 20 : 5;
+      return Posts.find(
+        { _id: { $in: postIds } },
+        {
+          fields: { title: 1, createdAt: 1 },
+          sort: { createdAt: -1, _id: 1 },
+          limit,
+        }
+      );
+    }, { cursorDependencies: 'onRead' });
+  });
+});
+```
+
+This client module opens the first page. Call `showMorePosts()` from the feed's “Load more” button.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+
+const sub = Meteor.subscribe('myFeed.pagedPosts');
+
+export function showMorePosts() {
+  return sub.setData('showMore', true);
+}
+```
+
+Title edits reach the client through the child's live cursor. Changing `subscribedPosts` stops the old child and creates one for the new list. An empty list withdraws the posts from this subscription.
+
+The child has its own reactive dependencies and options. Each time the parent reruns, it stops its children and sets up the new ones. Nesting fits a relatively stable parent and frequently changing child inputs. This feed uses one child for all followed IDs because only one autorun in a publication can return a cursor for a given collection. [Flat and nested publication measurements](./bench/PUBLICATION-MEASUREMENTS.md#nested-autoruns)
 
 ## TypeScript Support
 

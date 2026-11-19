@@ -10,7 +10,9 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 Publication readiness waits for the initial asynchronous queries. Each subscriber keeps its own documents when cursors change. If a returned cursor and a second autorun publish the same document, the client receives its removal when the last owner releases it.
 
-Unchanged cursors reuse their observers. Replaced cursors release their observers and cleanup callbacks, stale dependencies are cleared on rerun, and nested computations stop with their parent. User callbacks registered with `this.onStop` in the publication keep their subscription lifetime. Callbacks registered inside a custom private `_publishCursor` hook run when that cursor retires. Subscription metadata is created on the first use of the data API.
+Unchanged cursors reuse their observers. Replaced cursors release their observers and cleanup callbacks, and stale dependencies are cleared on rerun. User callbacks registered with `this.onStop` in the publication keep their subscription lifetime. Callbacks registered inside a custom private `_publishCursor` hook run when that cursor retires. Subscription metadata is created on the first use of the data API.
+
+Nested publication autoruns keep their own dependencies across `await` and reuse a child's cursor when the query stays the same. When a parent changes during startup, readiness waits for the replacement child. Documents the replacement still publishes stay on the client, and documents leave once their last owner releases them. [Nested publication example](./README.md#nest-an-autorun-inside-a-lookup)
 
 ### Per-autorun options
 
