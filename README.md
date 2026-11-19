@@ -24,7 +24,7 @@ For the stable release, run `meteor add nachocodoner:reactive-publish`. To try t
 meteor add nachocodoner:reactive-publish@=1.2.0-beta.0
 ```
 
-The reactive count option described below is available in this checkout for a later release and is pending publication.
+You can try `countDependencies: 'membership'` in this checkout ahead of its first package release.
 
 ## Usage
 
@@ -32,7 +32,7 @@ The reactive count option described below is available in this checkout for a la
 
 The 1.2 beta reuses observers for unchanged cursors and cleans up obsolete dependencies automatically. A sorted publication that kept returning the same query used **about 30% less Meteor process CPU per write** on upgrade from 1.1.1 with default settings. [Default upgrade measurements](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
-Choose an option for the publication that does the work. Each row can be enabled on its own.
+You can enable each option independently on the autorun that needs it.
 
 | Your publication | Option | Expected benefit |
 | --- | --- | --- |
