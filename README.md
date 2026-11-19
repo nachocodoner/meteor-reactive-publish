@@ -37,7 +37,7 @@ From your Meteor application, install the current stable release.
 meteor add nachocodoner:reactive-publish
 ```
 
-Once the first 1.2 beta is published, you can select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.0`.
+> **Beta installation.** Once the beta is published, select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.0`.
 
 ## Usage
 
@@ -89,7 +89,9 @@ The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, 
 
 #### Nest an autorun inside a lookup
 
-Suppose the same feed should show the five newest posts the user follows, with a button to load more. In the 1.2 beta, you can split that work across two nested autoruns. The parent looks up the user's followed post IDs. The child uses those IDs and the requested page size to select the posts.
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`, a nested publication autorun can reuse an unchanged cursor until its parent reruns.
+
+Suppose the same feed should show the five newest posts the user follows, with a button to load more. The parent autorun looks up the user's followed post IDs. The child uses those IDs and the requested page size to select the posts.
 
 ```javascript
 import { Meteor } from 'meteor/meteor';
@@ -310,7 +312,9 @@ export default function AuthorStats() {
 
 ## Choosing an autorun option
 
-The 1.2 beta offers three options per autorun. `countDependencies` and `cursorDependencies` control which changes make it run again. `returnedCursorStrategy` controls how Meteor watches the returned documents when the query changes.
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`, each publication autorun can choose how it tracks dependencies and observes returned cursors.
+
+`countDependencies` and `cursorDependencies` control which changes make the autorun run again. `returnedCursorStrategy` controls how Meteor watches the returned documents when the query changes.
 
 Each example is a complete server module for a feed in an app with Meteor accounts. A user's `subscribedPosts` field holds an array of post IDs. Each notification has a `userId` and a boolean `read` field. The publications share these collections, defined once in `/imports/api/collections.js`.
 
@@ -428,11 +432,13 @@ const sub = Meteor.subscribe('myFeed.withOptions', {
 
 Each `this.autorun(fn, options)` on the server has its own settings. With `Meteor.publishReactive(name, fn, options)`, the settings apply to its single autorun. [Ticket dashboard with three autoruns](./PUBLICATION-OPTIONS.md#a-ticket-dashboard-with-three-autoruns)
 
-The beta also saves work with the defaults. In a sorted feed benchmark it used **about 30% less server CPU per write** than 1.1.1 while sending identical updates. [Default upgrade benchmark](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
+With the default settings, `1.2.0-beta.0` used **about 30% less server CPU per write** than `1.1.1` in the sorted feed benchmark. Both versions sent identical updates. [Default upgrade benchmark](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
 
 ## TypeScript Support
 
-The 1.2 beta ships types for the package exports, publication helpers, subscription data and autorun options. For example, the scrolling subscription can specify the type of the total it reads.
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`, Meteor 3.6 and later can load the package’s native TypeScript declarations.
+
+The types cover package exports, publication helpers, subscription data and autorun options. For example, the scrolling subscription can specify the type of the total it reads.
 
 ```ts
 import { Meteor } from 'meteor/meteor';

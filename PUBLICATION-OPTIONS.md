@@ -1,5 +1,7 @@
 # Choosing publication options
 
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`, each publication autorun can choose how it tracks dependencies and observes returned cursors.
+
 When an autorun returns a Mongo cursor, Meteor observes that query to keep the client up to date. By default, calling `find()` inside the autorun also makes the function rerun when matching data changes. In a join, editing a comment can therefore send the new text to the client and make the function fetch the parent posts again.
 
 | When to use it | Set this on the autorun | What the benchmark measured |
@@ -8,7 +10,7 @@ When an autorun returns a Mongo cursor, Meteor observes that query to keep the c
 | [Return a live cursor from a join](#return-a-live-cursor-from-a-join) when edits can reach the client without another lookup | `cursorDependencies: 'onRead'` | **50% fewer reruns** on a mix of post and comment edits. |
 | [Publish a changing list of IDs](#publish-a-changing-list-of-ids) when most IDs stay on the list between edits | `returnedCursorStrategy: 'incremental'` | **About 61% less server CPU per list edit** with read tracking enabled in both runs. |
 
-All three options are included in the `1.2.0-beta.0` candidate. With `Meteor.publishReactive(name, fn, options)`, they apply to the one autorun that runs `fn`.
+With `Meteor.publishReactive(name, fn, options)`, the options apply to the one autorun that runs `fn`.
 
 ## Set options on individual autoruns
 
