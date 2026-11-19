@@ -28,26 +28,11 @@ Once the first 1.2 beta is published, you can select it with `meteor add nachoco
 
 ### Reactive Composed Data Publish
 
-A publication can read one collection to decide which documents to publish from another. Wrap that lookup in `this.autorun` to keep it reactive.
+A publication can read one collection to decide which documents to publish from another.
 
 #### Basic
 
 This publication sends the posts a user subscribes to. When the user subscribes to another post, the client receives it through the same subscription.
-
-```javascript
-Meteor.publish('subscribed-posts', function () {
-  if (!this.userId) return this.ready();
-  this.autorun(async () => {
-    const user = await Meteor.users.findOneAsync(this.userId, {
-      fields: { subscribedPosts: 1 },
-    });
-
-    return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
-  });
-});
-```
-
-Just like a regular publication, an autorun can return a cursor or an array of cursors. When the publication uses a single autorun, `Meteor.publishReactive` provides a shorthand.
 
 ```javascript
 Meteor.publishReactive('subscribed-posts', async function () {
@@ -59,6 +44,33 @@ Meteor.publishReactive('subscribed-posts', async function () {
   return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
 });
 ```
+
+`Meteor.publishReactive` runs the function in one autorun. Like a regular publication, it can return a cursor or an array of cursors.
+
+#### Two autoruns in one publication
+
+Use `Meteor.publish` directly when one subscription has two pieces of reactive work. This feed publishes the user's subscribed posts and an unread notification count.
+
+```javascript
+Meteor.publish('myFeed', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
+  });
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+  });
+});
+```
+
+The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, and it can read the count with `sub.data('unreadCount')`.
 
 #### Time-based queries
 

@@ -8,13 +8,36 @@ When an autorun returns a Mongo cursor, Meteor observes that query to keep the c
 | Reads parent documents to select a live child cursor | `cursorDependencies: 'onRead'` | Rerunning the parent query when a child changes. |
 | Returns a long-lived cursor over a changing list of IDs | `returnedCursorStrategy: 'incremental'` | Rebuilding observers for IDs that stay on the list. |
 
-`Meteor.publishReactive(name, fn, options)` creates one implicit autorun for `fn`. Inside a regular `Meteor.publish`, pass options to each `this.autorun(fn, options)` that needs them. Sibling and nested autoruns that omit their options use the defaults. The ticket dashboard uses different settings for its count, its activity window and its pinned tickets. [Walk through three autoruns in one subscription](./README.md#multiple-autoruns)
+All three options are included in the `1.2.0-beta.0` candidate. With `Meteor.publishReactive(name, fn, options)`, they apply to the one autorun that runs `fn`.
+
+## Set options on individual autoruns
+
+Here is the README's feed with a different setting on each `this.autorun(fn, options)`. The first autorun reads the user's list of post IDs and returns the posts. The second counts unread notifications. [Feed with default settings](./README.md#two-autoruns-in-one-publication)
+
+```js
+Meteor.publish('myFeed', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
+  }, { cursorDependencies: 'onRead' });
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+  }, { countDependencies: 'membership' });
+});
+```
+
+Editing a post's title reaches the client through the returned cursor. With `'onRead'`, the first autorun skips looking up the user again. Marking a notification as read changes which IDs match, so the second autorun updates the count. Editing the notification's text leaves the count alone.
+
+Each sibling or nested autorun that omits its options uses the defaults. Multiple autoruns can query the same collection, and only one can return a cursor for that collection. The ticket dashboard also shows how to combine read tracking with incremental observation in a single autorun. [Dashboard with three autoruns](./README.md#multiple-autoruns)
 
 Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`. The returned cursor strategy applies to publication autoruns.
-
-Multiple autoruns can query the same collection in one publication. Only one can return a cursor for that collection. In the dashboard, the count sends a number with `this.setData` and the pinned list returns the tickets cursor.
-
-All three options are included in the `1.2.0-beta.0` candidate.
 
 ## Publish a count
 
