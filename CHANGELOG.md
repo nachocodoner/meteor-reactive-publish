@@ -4,28 +4,23 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
-## Unreleased
-
-- Add `countDependencies: 'membership'` for reactive counters. This single option tracks cursor reads in the autorun and reruns eligible counts when documents enter or leave the query. Edits to other fields can skip a rerun. [Choosing publication options](./PUBLICATION-OPTIONS.md)
-
 ## [1.2.0-beta.0]
 
-Existing publication functions receive the lifecycle and cursor reuse improvements on upgrade. Two experimental options can be selected independently for a publication autorun.
+### Publication lifecycle
 
-- Use `cursorDependencies: 'onRead'` when a returned Mongo cursor can deliver updates without rerunning the publication body. The default `'onFind'` tracks cursor creation.
-- Use `returnedCursorStrategy: 'incremental'` for supported Mongo cursors with a changing set of related IDs. The default is `'standard'`. [Choosing publication options](./PUBLICATION-OPTIONS.md)
-- Reconcile document ownership with fewer temporary collections and replace a selector's cached options directly. Both improvements apply with the default settings.
-- Run ordinary package tests on Meteor 3.3.2 and 3.6 and lint on pull requests. Full core tests can be started manually. Benchmarks run manually or on their schedule.
+Publication readiness waits for the initial asynchronous queries. Each subscriber keeps its own documents when cursors change. If a returned cursor and a second autorun publish the same document, the client receives its removal when the last owner releases it.
 
-- Exclude repository development dependencies and generated profiles from Meteor package source scanning, alongside the existing benchmark and script exclusions.
+Unchanged cursors reuse their observers. Replaced cursors release their observers and cleanup callbacks, stale dependencies are cleared on rerun, and nested computations stop with their parent. User callbacks registered with `this.onStop` in the publication keep their subscription lifetime. Callbacks registered inside a custom private `_publishCursor` hook run when that cursor retires. Subscription metadata is created on the first use of the data API.
 
-- Release cleanup callbacks when publication autoruns replace returned cursors, so stopped observers and their data do not accumulate until unsubscribe. Preserve user subscription stop callbacks and clean up callbacks registered during interrupted async cursor setup.
-- Instrument retained cursor/subscription cleanup callbacks in benchmarks and add regressions for bounded callback retention and stop during cursor setup.
-- Track current computation dependencies directly instead of accumulating invalidation and stop callbacks on repeated reads. Release obsolete dependencies on rerun and reject dependency reads after stop, including reads after an await.
-- Reuse observers for unchanged cursors returned by publication autoruns. Retire replaced cursors, preserve each subscriber's ownership, and reconcile membership after awaited query changes.
-- Add regressions for long-lived computations, async dependency cleanup, observer reuse, and events arriving while a query changes.
-- Repair clean dependency installs, pin the package-test runtime, and run lint in CI. Prepare released Meteor runtimes before resolving their Node/Mongo executables.
-- Add an equivalent personalized-selector benchmark with separate per-client data validation. Keep performance checks advisory and use substantial repeated workloads for scheduled A/A calibration.
+### Per-autorun options
+
+- Use `countDependencies: 'membership'` for counters such as the number of open tickets. This one option enables read tracking and skips recounts on field edits that leave the matching IDs unchanged.
+- Use `cursorDependencies: 'onRead'` for a join that reads parent documents and returns a live child cursor. Child edits reach the client through the cursor. The default `'onFind'` also tracks cursor creation.
+- Use `returnedCursorStrategy: 'incremental'` for a long-lived publication over a changing list of IDs. Eligible queries reuse observers for IDs that remain selected. The default is `'standard'`. [Examples and measured tradeoffs](./PUBLICATION-OPTIONS.md)
+
+### Benchmarks and testing
+
+The repository includes a reproducible benchmark for reactive publications. It checks what each DDP client receives and whether resources are released after unsubscribe. Reports cover Meteor process CPU, delivery latency, traffic and observer activity. Ordinary package tests run on Meteor 3.3.2 and 3.6 in pull requests. [Benchmark commands](./bench/README.md)
 
 ---
 

@@ -12,7 +12,7 @@ Choose the option that matches the work your publication repeats.
 
 Pass the option as the third argument to `Meteor.publishReactive(name, fn, options)` or the second argument to `this.autorun(fn, options)`. Each sibling or nested autorun chooses its own settings. Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDependencies` and `cursorDependencies`.
 
-**Availability.** The `1.2.0-beta.0` candidate includes `cursorDependencies` and `returnedCursorStrategy`. The `countDependencies` option is available in this checkout and is pending publication.
+All three options are included in the `1.2.0-beta.0` candidate.
 
 ## Publish a count
 
