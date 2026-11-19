@@ -1,8 +1,8 @@
 # Choosing publication options
 
-> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`, each publication autorun can choose how it tracks dependencies and observes returned cursors.
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`
 
-When an autorun returns a Mongo cursor, Meteor observes that query to keep the client up to date. By default, calling `find()` inside the autorun also makes the function rerun when matching data changes. In a join, editing a comment can therefore send the new text to the client and make the function fetch the parent posts again.
+Each publication autorun can choose how it tracks dependencies and observes returned cursors. When an autorun returns a Mongo cursor, Meteor observes that query to keep the client up to date. By default, calling `find()` inside the autorun also makes the function rerun when matching data changes. In a join, editing a comment can therefore send the new text to the client and make the function fetch the parent posts again.
 
 | When to use it | Set this on the autorun | What the benchmark measured |
 | --- | --- | --- |
