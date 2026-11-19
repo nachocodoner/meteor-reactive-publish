@@ -245,11 +245,15 @@ export default function AuthorStats() {
 
 ## Choosing an autorun option
 
-The `myFeed` publication above has one autorun for posts and another for the unread count. In the 1.2 beta you can tune each independently. To follow along, keep the `userId` check in `Meteor.publish` and replace the two original autoruns with the ones below. [Original feed with default settings](#two-autoruns-in-one-publication)
+The 1.2 beta offers three options per autorun. `countDependencies` and `cursorDependencies` control which changes make it run again. `returnedCursorStrategy` controls how Meteor watches the returned documents when the query changes.
 
-### Count unread notifications only when the badge can change
+To try them in `myFeed`, keep the `userId` check in `Meteor.publish` and replace the two original autoruns with the ones below. [Original feed with default settings](#two-autoruns-in-one-publication)
 
-Editing an unread notification's text leaves the badge unchanged. Marking it as read lowers the badge by one. Use `countDependencies: 'membership'` to recount only when a notification enters or leaves the unread set.
+### Recount when documents enter or leave a query
+
+Use `countDependencies: 'membership'` when an autorun publishes a count. For a plain `countAsync()` query, it tracks which document IDs match. Edits that leave the same IDs in the result can skip the recount.
+
+In `myFeed`, editing an unread notification's text leaves the badge unchanged. Marking it as read takes it out of the query, so the autorun recounts and the badge drops by one.
 
 ```javascript
 this.autorun(async () => {
@@ -260,9 +264,11 @@ this.autorun(async () => {
 
 Membership enables read tracking automatically. In a benchmark where four out of five writes only edited a title, it produced **80% fewer autorun executions** and used **about 30% less server CPU per write**. Delivery of counts that did change took about 9% longer at the 95th percentile. [Count benchmark](./bench/COUNT-MEMBERSHIP.md#measured-effect)
 
-### Deliver a post edit without looking up the user again
+### Return a live cursor without repeating the lookup
 
-The feed reads the user's `subscribedPosts` to choose which posts to send. A title edit already reaches the client through the returned `Posts` cursor. By default, that edit can also make the feed look up the user again. With `cursorDependencies: 'onRead'`, the function reruns when the data it reads changes. Here that means a change to the user's list of IDs.
+Use `cursorDependencies: 'onRead'` when an autorun reads data to decide which cursor to return. By default, calling `find()` also makes the autorun depend on that cursor's results. With `'onRead'`, the lookup stays reactive and the returned cursor can deliver its own updates without repeating the lookup.
+
+In `myFeed`, editing a post's title sends the new title straight to the client. Changing the user's `subscribedPosts` still reruns the function because it reads that list to choose the posts.
 
 ```javascript
 async function publishSubscribedPosts() {
@@ -277,9 +283,11 @@ this.autorun(publishSubscribedPosts, { cursorDependencies: 'onRead' });
 
 A join that read posts and returned comments ran **50% fewer times** with `'onRead'` and delivered the same client updates. If the function also reads the comments to compute a value, edits to those comments still rerun it. [Read-tracking benchmark](./bench/PUBLICATION-MEASUREMENTS.md#read-tracking)
 
-### Keep watching the other posts when the list changes
+### Reuse observers when a list of IDs changes
 
-Adding a post to `subscribedPosts` changes the `$in` query. The function needs to run again to publish the new list. When users often add or remove one string ID at a time, `returnedCursorStrategy: 'incremental'` keeps observers for groups of posts that stayed on the list. It works on its own. Here we keep `'onRead'` so title edits still skip the user lookup.
+Use `returnedCursorStrategy: 'incremental'` for a long-lived `$in` query when a few string IDs change at a time. The autorun still reruns to publish the new list. The server saves work on that run by keeping the observers that watch unchanged groups of IDs.
+
+When a reader subscribes to one more post, `myFeed` updates the query and keeps watching groups of posts that stayed on the list. Here we also keep `'onRead'` so title edits skip the user lookup. Either option can be used on its own.
 
 ```javascript
 // Replace the posts autorun call above. The badge keeps its own settings.

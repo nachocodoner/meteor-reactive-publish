@@ -4,9 +4,9 @@ When an autorun returns a Mongo cursor, Meteor observes that query to keep the c
 
 | When to use it | Set this on the autorun | What the benchmark measured |
 | --- | --- | --- |
-| [Count open tickets](#publish-a-count) when most edits leave them open | `countDependencies: 'membership'` | **80% fewer reruns** when four in five writes only changed a title. |
-| [Publish comments on a user's posts](#return-a-live-cursor-from-a-join) when comment edits can go straight to the client | `cursorDependencies: 'onRead'` | **50% fewer reruns** on a mix of post and comment edits. |
-| [Publish saved posts](#publish-a-changing-list-of-ids) when one ID changes at a time | `returnedCursorStrategy: 'incremental'` | **About 61% less server CPU per list edit** with read tracking enabled in both runs. |
+| [Publish a count](#publish-a-count) when most edits leave the same documents in the query | `countDependencies: 'membership'` | **80% fewer reruns** when four in five writes only changed a title. |
+| [Return a live cursor from a join](#return-a-live-cursor-from-a-join) when edits can reach the client without another lookup | `cursorDependencies: 'onRead'` | **50% fewer reruns** on a mix of post and comment edits. |
+| [Publish a changing list of IDs](#publish-a-changing-list-of-ids) when most IDs stay on the list between edits | `returnedCursorStrategy: 'incremental'` | **About 61% less server CPU per list edit** with read tracking enabled in both runs. |
 
 All three options are included in the `1.2.0-beta.0` candidate. With `Meteor.publishReactive(name, fn, options)`, they apply to the one autorun that runs `fn`.
 
@@ -41,7 +41,9 @@ Standalone server `AsyncTracker.autorun(fn, options)` also supports `countDepend
 
 ## Publish a count
 
-An open-ticket badge needs an update when a ticket opens or closes. Editing the title of an open ticket leaves the badge unchanged. Enable membership tracking on the autorun that computes the badge.
+With `countDependencies: 'membership'`, a count-only autorun tracks which documents match the query. It can skip edits to fields that leave those documents in the result.
+
+For an open-ticket badge, closing a ticket removes it from the query and updates the count. Editing the title of an open ticket leaves the badge unchanged.
 
 ```js
 Meteor.publishReactive('myOpenTicketCount', async function () {
@@ -56,7 +58,7 @@ Meteor.publishReactive('myOpenTicketCount', async function () {
 }, { countDependencies: 'membership' });
 ```
 
-This single setting turns on read tracking throughout the autorun. For an eligible `countAsync()`, the package observes the IDs that match the selector and executes the original count when the autorun runs. Adding, removing or reassigning a ticket can change that set. A title edit alone leaves it intact. Other reads keep their own dependencies. If the same autorun also fetches the tickets, title edits still update that reader and the additional count observer can cost more.
+This single setting turns on read tracking throughout the autorun. For an eligible `countAsync()`, the package observes the IDs that match the selector and executes the original count when the autorun runs. Other reads keep their own dependencies. If the same autorun also fetches the tickets, title edits still update that reader and the additional count observer can cost more.
 
 The ID-only observer applies to plain, named server Mongo cursors. Explicit projections, transforms, sort, skip, limit, local cursors and custom observers keep their usual behavior. For example, an aggregation grouped by `authorId` needs to run when a post changes author, even when the total count stays the same. Project `authorId` explicitly on the cursor that provides that dependency. [Aggregation example](./README.md#derived-stats-via-aggregation)
 
@@ -66,7 +68,9 @@ The default `countDependencies: 'documents'` tracks document changes. You can al
 
 ## Return a live cursor from a join
 
-Suppose a publication reads the IDs of the subscriber's posts and returns their comments. Adding a post makes the function run again to include that post's ID in the comments query. Editing the text of an existing comment leaves the post IDs alone.
+Use `cursorDependencies: 'onRead'` when an autorun looks up data to build a second query and returns that query as a live cursor. Changes to the data it reads rerun the lookup. Meteor can send edits through the returned cursor without repeating that work.
+
+For example, a publication reads the IDs of the subscriber's posts and returns their comments. Adding a post reruns the lookup to include its ID. Editing a comment's text goes straight to the client.
 
 ```js
 async function commentsOnMyPosts() {
@@ -86,7 +90,7 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 });
 ```
 
-Here, `fetchAsync()` reads the posts. `return Comments.find(...)` hands Meteor a live query to publish. With `'onRead'`, an edit to a comment's body travels through that cursor without fetching the posts again. If the function also fetches the comments to calculate a summary, it reads their contents and relevant edits still rerun the function.
+Here, `fetchAsync()` reads the posts. `return Comments.find(...)` hands Meteor a live query to publish. If the function also fetches the comments to calculate a summary, it reads their contents and relevant edits still rerun the function.
 
 Supported server Mongo reads include `fetchAsync()`, `mapAsync()`, `forEachAsync()`, `countAsync()` and `fetch()`. Local collections keep their usual creation-time dependencies. Reading subscription data or a reactive variable also establishes a dependency.
 
@@ -96,7 +100,9 @@ Supported server Mongo reads include `fetchAsync()`, `mapAsync()`, `forEachAsync
 
 ## Publish a changing list of IDs
 
-Suppose a reader adds one post to a saved list. The function has to run again because the IDs it read have changed. Standard observation already reuses the observer when the returned query stays the same. Changing the list produces a new `$in` query and replaces that observer. Incremental observation watches groups of IDs separately, so groups whose IDs stay the same can keep their observers.
+Use `returnedCursorStrategy: 'incremental'` when a long-lived publication returns a `$in` query over a changing list of string IDs. Standard observation reuses the observer while the query stays the same. Incremental observation can also reuse observers across list edits because it watches groups of IDs separately.
+
+When a reader saves one more post, the function still has to run again to include its ID. Groups of IDs that stayed on the saved list keep their observers.
 
 ```js
 Meteor.publishReactive('mySavedPosts', async function () {
