@@ -37,7 +37,7 @@ From your Meteor application, install the current stable release.
 meteor add nachocodoner:reactive-publish
 ```
 
-To test the beta, select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.1`.
+To test the beta, select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.2`.
 
 ## Usage
 
@@ -482,6 +482,14 @@ tests, and client/server package tests on Meteor 3.3.2 and 3.6. The `test:types`
 check generates the declarations in a Meteor 3.6 app and type-checks its package imports.
 Use Meteor 3.6 or later to publish a release with native declaration metadata.
 Pull requests that change the package runtime, its build configuration or the core test runner also run Meteor's core package tests. Each Mongo backend runs once on unmodified core and once with this package loaded. The same checks run on pushes to `master` and can be started manually. [Core verification guide](./bench/CORE-TESTING.md)
+
+After `npm run bench:setup`, run `npm run test:observers -- native` or
+`npm run test:observers -- redis` for the live DDP cursor regressions. Both
+start a temporary Meteor app and Mongo replica set. The Redis lane also needs
+`redis-server` and `redis-cli` on `PATH`; it starts its own server and uses
+`cultofcoders:redis-oplog@3.0.1`. Applications using Mongo's native oplog do
+not need Redis. The tests cover cold readiness, actual reads vs. returned
+cursors, consecutive parent changes, and restoring a withdrawn result.
 
 See the [benchmark guide](./bench/README.md) for isolated databases, paired
 comparisons, calibration, profiling, and interpretation of measurements.

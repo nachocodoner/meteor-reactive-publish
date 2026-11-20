@@ -102,6 +102,8 @@ Meteor.publishReactive('commentsOnMyPosts', commentsOnMyPosts, {
 
 Here, `fetchAsync()` reads the posts. `return Comments.find(...)` hands Meteor a live query to publish. If the function also fetches the comments to calculate a summary, it reads their contents and relevant edits still rerun the function.
 
+The observer may fetch those comments internally to deliver its initial rows. That is not a read by your function. With the Redis Oplog compatibility fix, the same `onRead` setting works for this case without switching to `onFind` or requiring Redis in applications that use Mongo's native oplog.
+
 Supported server Mongo reads include `fetchAsync()`, `mapAsync()`, `forEachAsync()`, `countAsync()` and `fetch()`. Local collections keep their usual creation-time dependencies. Reading subscription data or a reactive variable also establishes a dependency.
 
 **Choosing parent fields.** The example explicitly selects `_id` because the child selector uses only the parent IDs. If the function also reads a post's title, include `title` in the projection. Use the default `'onFind'` when creating a cursor is itself the signal to recompute a raw aggregation or run another side effect.

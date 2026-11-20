@@ -44,6 +44,29 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
+  observers:
+    name: Live publications (${{ matrix.driver }})
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        driver: [native, redis]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: npm
+          cache-dependency-path: bench/package-lock.json
+      - uses: meteorengineer/setup-meteor@v2
+        with:
+          meteor-release: '3.6'
+      - if: matrix.driver == 'redis'
+        run: sudo apt-get update && sudo apt-get install -y redis-server redis-tools
+      - run: npm ci --prefix bench
+      - run: npm run test:observers -- ${{ matrix.driver }}
+
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 30

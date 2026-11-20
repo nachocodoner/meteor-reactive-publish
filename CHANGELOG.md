@@ -4,6 +4,14 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
+## [1.2.0-beta.2]
+
+- Fix a cold returned cursor hanging before `ready` with `cursorDependencies: 'onRead'` and Redis Oplog. The driver's initial fetch no longer counts as a read by the publication, including when the app initializes the driver itself. Edits still reach the subscriber without rerunning a returned-only cursor.
+- Preserve ownership of a directly published parent cursor when a nested computation reads the same query: the driver's internal callbacks no longer inherit another computation's publication context.
+- Let a publication react to a cursor change without making the observe driver's delivery queue wait for that rerun. A publication can now observe a previously removed row again even if the driver serializes delivery and observer registration on the same queue.
+
+---
+
 ## [1.2.0-beta.1]
 
 - Fix a regression in beta.0's returned-cursor observer reuse. A custom `_publishCursor` that sent a row to two collection names could lose its second copy immediately after readiness, even in a single autorun with default options. Reused observers now retain the collection names and document IDs actually published; replacing a cursor still releases its obsolete rows.
