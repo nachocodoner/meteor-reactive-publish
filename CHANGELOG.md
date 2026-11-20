@@ -4,6 +4,12 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
+## [1.2.0-beta.1]
+
+- Fix a regression in beta.0's returned-cursor observer reuse. A custom `_publishCursor` that sent a row to two collection names could lose its second copy immediately after readiness, even in a single autorun with default options. Reused observers now retain the collection names and document IDs actually published; replacing a cursor still releases its obsolete rows.
+
+---
+
 ## [1.2.0-beta.0]
 
 ### Publication lifecycle
