@@ -4,6 +4,55 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
+## [1.2.0-beta.3]
+
+- Serialize subscription metadata initialization, writes and cleanup when login or logout recreates a publication under the same subscription ID. Concurrent `setData` calls could previously fail with a duplicate metadata ID, including on stable 1.1.1.
+- Keep retired publication callbacks from reading or changing replacement metadata, and prevent old cleanup from removing the replacement's data. Metadata remains lazy and belongs to the publication; stopping a child autorun retains its metadata keys.
+- Retry metadata initialization on a later access after an insertion fails, without hiding the original failure or claiming ownership of a missing row.
+- Acknowledge client `setData` writes only after the server accepts them, including for active publications registered before the wrapper. Reject unavailable subscriptions with `subscription-data-unavailable`; interrupted writes are not automatically replayed into a replacement session.
+
+---
+
+## [1.2.0-beta.2]
+
+- Fix a cold returned cursor hanging before `ready` with `cursorDependencies: 'onRead'` and Redis Oplog. The driver's initial fetch no longer counts as a read by the publication, including when the app initializes the driver itself. Edits still reach the subscriber without rerunning a returned-only cursor.
+- Preserve ownership of a directly published parent cursor when a nested computation reads the same query: the driver's internal callbacks no longer inherit another computation's publication context.
+- Let a publication react to a cursor change without making the observe driver's delivery queue wait for that rerun. A publication can now observe a previously removed row again even if the driver serializes delivery and observer registration on the same queue.
+
+---
+
+## [1.2.0-beta.1]
+
+- Fix a regression in beta.0's returned-cursor observer reuse. A custom `_publishCursor` that sent a row to two collection names could lose its second copy immediately after readiness, even in a single autorun with default options. Reused observers now retain the collection names and document IDs actually published; replacing a cursor still releases its obsolete rows.
+
+---
+
+## [1.2.0-beta.0]
+
+### Publication lifecycle
+
+Publication readiness waits for the initial asynchronous queries. Each subscriber keeps its own documents when cursors change. If a returned cursor and a second autorun publish the same document, the client receives its removal when the last owner releases it.
+
+Unchanged cursors reuse their observers. Replaced cursors release their observers and cleanup callbacks, and stale dependencies are cleared on rerun. User callbacks registered with `this.onStop` in the publication keep their subscription lifetime. Callbacks registered inside a custom private `_publishCursor` hook run when that cursor retires. Subscription metadata is created on the first use of the data API.
+
+Nested publication autoruns keep their own dependencies across `await` and reuse a child's cursor when the query stays the same. When a parent changes during startup, readiness waits for the replacement child. Documents the replacement still publishes stay on the client, and documents leave once their last owner releases them. [Nested publication example](./README.md#nest-an-autorun-inside-a-lookup)
+
+### Per-autorun options
+
+- Use `countDependencies: 'membership'` for counters such as the number of open tickets. This one option enables read tracking and skips recounts on field edits that leave the matching IDs unchanged.
+- Use `cursorDependencies: 'onRead'` for a join that reads parent documents and returns a live child cursor. Child edits reach the client through the cursor. The default `'onFind'` also tracks cursor creation.
+- Use `returnedCursorStrategy: 'incremental'` for a long-lived publication over a changing list of IDs. Eligible queries reuse observers for IDs that remain selected. The default is `'standard'`. [Examples and measured tradeoffs](./PUBLICATION-OPTIONS.md)
+
+### TypeScript
+
+Meteor 3.6 apps can load this package's declarations with `meteor types`. This includes autocomplete for all three autorun options and types for the data a client reads from its subscription. Earlier Meteor 3 apps can continue using `zodern:types`. [TypeScript setup](./README.md#typescript-support)
+
+### Benchmarks and testing
+
+The repository includes a reproducible benchmark for reactive publications. It checks what each DDP client receives and whether resources are released after unsubscribe. Reports cover Meteor process CPU, delivery latency, traffic and observer activity. Ordinary package tests run on Meteor 3.3.2 and 3.6 in pull requests. [Benchmark commands](./bench/README.md)
+
+---
+
 ## [1.1.1]
 
 ### Fixes

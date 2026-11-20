@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "types": ["node"],
+    "preserveSymlinks": true,
+    "paths": {
+      "meteor/*": ["./.meteor/types/packages/*"]
+    }
+  },
+  "files": ["./.meteor/types/packages.d.ts", "./consumer.ts"]
+}

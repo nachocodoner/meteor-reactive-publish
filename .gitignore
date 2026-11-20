@@ -1,6 +1,19 @@
 node_modules/
+/node_modules
+/bench/node_modules
 dist/
 build/
 .meteor/local
 .idea
 .babel-cache
+bench/results/
+bench/cache/
+**/.meteor/local/
+*.cpuprofile
+*.heapsnapshot
+
+# Local investigations remain private until explicitly selected for publication.
+bench/private/
+bench/LIBRARY-COMPARISON.md
+bench/CURSOR-CLEANUP.md
+bench/MACHINE-SAFETY.md

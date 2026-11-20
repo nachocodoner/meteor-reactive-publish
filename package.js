@@ -1,6 +1,6 @@
 Package.describe({
   name: 'nachocodoner:reactive-publish',
-  version: '1.1.1',
+  version: '1.2.0-beta.3',
   summary: 'Reactive publish for Meteor with async support',
   git: 'https://github.com/nachocodoner/meteor-reactive-publish',
   documentation: 'README.md',
@@ -10,12 +10,24 @@ Package.onUse(function (api) {
   api.versionsFrom(['3.0.1']);
   api.use([
     'ecmascript',
+    'ejson',
+    'diff-sequence',
     'mongo',
     'minimongo',
     'tracker',
     'reactive-var',
-    'zodern:types@1.0.13',
   ]);
+
+  if (typeof api.types === 'function') {
+    api.types('index.native.d.ts');
+    // Apps using zodern can read these files from the same published isopack.
+    api.addAssets(
+      ['index.d.ts', 'reactive-publish.d.ts', 'package-types.json'],
+      'server'
+    );
+  } else {
+    api.use('zodern:types@1.0.13');
+  }
 
   // Export the AsyncTracker and ReactiveVarAsync
   api.export('AsyncTracker');
@@ -57,6 +69,8 @@ Package.onTest(function (api) {
     'random',
     'check',
     'jquery',
+    'ddp-client',
+    'mongo',
   ]);
   api.use(['accounts-base', 'accounts-password']);
   api.use(['tinytest', 'test-helpers']);
@@ -64,15 +78,20 @@ Package.onTest(function (api) {
 
   // Add the test files for server
   api.addFiles(['lib/ReactiveMongo/ReactiveMongoServer.tests.js'], ['server']);
+  api.addFiles(['lib/ReactivePublishServer.tests.js'], ['server']);
 
   // Add the test files for server and client
   api.addFiles([
+    'lib/testHelpers.js',
     'lib/ReactiveAsync/AsyncTracker.tests.js',
     'lib/ReactiveAsync/ReactiveVarAsync.tests.js',
     'lib/ReactiveAsync/ComputedField.tests.js',
     'lib/ReactiveAsync/DataLookup.tests.js',
     'lib/ReactiveAsync/ReactiveAsyncShowcase.tests.js',
     'lib/ReactivePublish.tests.js',
+    'lib/ReactivePublishLifecycle.tests.js',
+    'lib/CursorDependencyModes.tests.js',
+    'lib/ReturnedCursorStrategy.tests.js',
     'lib/ReactivePublishVsNonReactive.tests.js',
     'lib/ReactiveData/ReactiveData.tests.js',
     'lib/ReactiveData/ReactiveDataShowcase.tests.js',

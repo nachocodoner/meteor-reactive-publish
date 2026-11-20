@@ -4,57 +4,140 @@
 
 - 🔄 Reactively publish data with related field changes across collections
 
-- 📊 Reactively publish derived data publishing without restarting subscriptions
+- 📊 Publish derived data without restarting subscriptions
 
 - ⚙️ Supports `autorun` in publication functions for **realtime updates**
 
-- 🧵 Integrates `AsyncTracker`/`ReactiveVarAsync` for **async-safe reactivity* (server only)
-
-- 🚀 Optimized with **unique cursors per computation** to avoid redundant re-instantiation
+- 🧵 Use `AsyncTracker` and `ReactiveVarAsync` with async code on the client and server
 
 🔥 [**Learn about the motivation**](./MOTIVATION.md) for reviving this package for Meteor 3.
 
-🗺️ [**Explore the roadmap**](#roadmap) for future updates and support.
+## Contents
+
+- [Installation](#installation)
+- [Usage examples](#usage)
+  - [Publish related documents](#reactive-composed-data-publish)
+  - [Two autoruns in one publication](#two-autoruns-in-one-publication)
+  - [Nest an autorun inside a lookup](#nest-an-autorun-inside-a-lookup)
+  - [Publish derived data](#reactive-derived-data-publish)
+- [Choosing an autorun option](#choosing-an-autorun-option)
+  - [Recount when documents enter or leave a query](#recount-when-documents-enter-or-leave-a-query)
+  - [Return a live cursor without repeating the lookup](#return-a-live-cursor-without-repeating-the-lookup)
+  - [Reuse observers when a list of IDs changes](#reuse-observers-when-a-list-of-ids-changes)
+- [TypeScript support](#typescript-support)
+- [Development and testing](#development)
+- [Roadmap](#roadmap)
+- [Acknowledgments](#acknowledgments)
 
 ## Installation
 
-``` bash
-meteor add nachocodoner:reactive-publish@1.1.1
+From your Meteor application, install the current stable release.
+
+```sh
+meteor add nachocodoner:reactive-publish
 ```
+
+To test the beta, select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.3`.
 
 ## Usage
 
 ### Reactive Composed Data Publish
 
-These examples show how to publish composed data reactively, letting clients receive updates when related fields change.
+A publication can read one collection to decide which documents to publish from another.
 
 #### Basic
 
-```javascript
-Meteor.publish('subscribed-posts', function () {
-  this.autorun(async () => {
-    const user = await User.findOneAsync(this.userId, {
-      fields: { subscribedPosts: 1 },
-    });
-
-    return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
-  });
-});
-```
-
-In the example above, you publish the user’s subscribed posts. When the User’s `subscribedPosts` field changes, autorun reruns and publishes the updated posts. Any queries with related data work the same way. You can also publish an array of cursors and use the same logic as in a normal publication body.
-
-Since most use cases involve a single `autorun` block, you can use `Meteor.publishReactive` for cleaner syntax:
+This publication sends the posts a user subscribes to. When the user subscribes to another post, the client receives it through the same subscription.
 
 ```javascript
 Meteor.publishReactive('subscribed-posts', async function () {
-  const user = await User.findOneAsync(this.userId, {
+  if (!this.userId) return this.ready();
+  const user = await Meteor.users.findOneAsync(this.userId, {
     fields: { subscribedPosts: 1 },
   });
 
   return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
 });
 ```
+
+`Meteor.publishReactive` runs the function in one autorun. Like a regular publication, it can return a cursor or an array of cursors.
+
+#### Two autoruns in one publication
+
+Use `Meteor.publish` directly when one subscription has two pieces of reactive work. This feed publishes the user's subscribed posts and an unread notification count.
+
+```javascript
+Meteor.publish('myFeed', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find({ _id: { $in: user?.subscribedPosts || [] } });
+  });
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+  });
+});
+```
+
+The client subscribes to `myFeed` once. Posts arrive in its `Posts` collection, and it can read the count with `sub.data('unreadCount')`. [Choose an option for each autorun](#choosing-an-autorun-option)
+
+#### Nest an autorun inside a lookup
+
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`
+
+Suppose the same feed should show the five newest posts the user follows, with a button to load more. The parent autorun looks up the user's followed post IDs. The child uses those IDs and the requested page size to select the posts. While that child is active, it can reuse its cursor whenever the query stays the same.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Posts } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.pagedPosts', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    const postIds = user?.subscribedPosts || [];
+    if (postIds.length === 0) return [];
+
+    this.autorun(async () => {
+      const limit = (await this.data('showMore')) === true ? 20 : 5;
+      return Posts.find(
+        { _id: { $in: postIds } },
+        {
+          fields: { title: 1, createdAt: 1 },
+          sort: { createdAt: -1, _id: 1 },
+          limit,
+        }
+      );
+    }, { cursorDependencies: 'onRead' });
+  });
+});
+```
+
+The client subscribes once. Call `showMorePosts()` from the feed’s “Load more” button to expand the page from five posts to twenty.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+
+const sub = Meteor.subscribe('myFeed.pagedPosts');
+
+export function showMorePosts() {
+  return sub.setData('showMore', true);
+}
+```
+
+Loading more reruns only the child and skips the user lookup. With `cursorDependencies: 'onRead'` on the child, editing a title goes straight to the client through the live cursor. Changing the followed IDs reruns the parent and replaces the child. If the list is empty, the subscription withdraws its posts.
+
+Nesting is useful when the lookup changes less often than the child’s filter or page size. In the benchmark, changing the child’s filter 20 times avoided all 20 repeat lookups. [Nested benchmark](./bench/PUBLICATION-MEASUREMENTS.md#nested-autoruns) · [Options for a nested autorun](./PUBLICATION-OPTIONS.md#options-for-a-nested-autorun)
 
 #### Time-based queries
 
@@ -83,35 +166,17 @@ Meteor.publish('recent-posts', function () {
 });
 ```
 
-#### Multiple autoruns
-
-This example shows define multiple autoruns for more efficient reactive triggers.
-
-```javascript
-Meteor.publish('users-posts-and-addresses', function (userId) {
-  this.autorun(async () => {
-    const user = await Users.findOneAsync(userId, {
-      fields: { posts: 1 },
-    });
-    return Posts.find({ _id: { $in: user?.posts || [] } });
-  });
-
-  this.autorun(async () => {
-    const user = await Users.findOneAsync(userId, {
-      fields: { addresses: 1 },
-    });
-    return Addresses.find({ _id: { $in: user?.addresses || [] } });
-  });
-});
-```
-
 ### Reactive Derived Data Publish
 
 These examples show how to publish derived data reactively, allowing clients to receive updates without restarting subscriptions.
 
+Client `sub.setData(path, value)` returns a promise that waits for the server's acknowledgment. It rejects with `subscription-data-unavailable` when the subscription is no longer active. A sent write interrupted before its result is known can reject with `invocation-failed`. This does not prove the write was not applied, and the library does not automatically replay it. After reconnecting, wait for readiness, confirm the current user, and inspect current metadata before deciding to submit a new write.
+
+Metadata belongs to the current server publication and resets when login or logout replaces that publication. Clients can write metadata, so server authorization must use the current user and trusted records rather than metadata values.
+
 #### Infinite scrolling and counts
 
-This example shows how to publish a collection with a reactive total count and allow the client to increase the limit of published items without restarting the subscription.
+One subscription publishes the total number of posts and a page of results. The first autorun sends the total with `this.setData`. The second reads the page size and returns the posts.
 
 Server:
 ```javascript
@@ -122,12 +187,10 @@ import { Mongo } from 'meteor/mongo';
 export const Posts = new Mongo.Collection('posts');
 
 Meteor.publish('posts.infiniteScroll', function () {
-  // Reactive total count
   this.autorun(async () => {
     await this.setData('countAll', await Posts.find().countAsync());
   });
 
-  // Reactive window of posts, adjustable by client
   this.autorun(async () => {
     const limit = Number(await this.data('limit')) || 10;
     check(limit, Number);
@@ -140,7 +203,6 @@ Client (Tracker):
 ```javascript
 import { Meteor } from 'meteor/meteor';
 import { Tracker } from 'meteor/tracker';
-import { Posts } from '/imports/api/posts.js';
 
 const sub = Meteor.subscribe('posts.infiniteScroll');
 
@@ -155,7 +217,7 @@ sub.setData('limit', 20);
 
 #### External reactive source
 
-This example shows how to publish data reactively from an external source. Here it's simulated with an interval toggling a user's subscription tier, but in practice it could be an API, another database, or any third-party service.
+This example simulates an external service changing a user's subscription tier every five seconds.
 
 Server:
 ```javascript
@@ -193,7 +255,7 @@ export default function SubscriptionInfo({ userId }) {
 
 This example shows how to publish derived data from a Mongo aggregation.
 
-It uses autorun to recalculate when the underlying collections change, and setData to push aggregated stats to the client.
+It uses autorun to recalculate when the underlying collections change, and setData to push aggregated stats to the client. The projected `authorId` and `postId` fields declare which edits must refresh the aggregation. Moving a post to another author changes both authors' statistics while the total number of posts stays the same.
 
 Server:
 ```javascript
@@ -252,27 +314,191 @@ export default function AuthorStats() {
 }
 ```
 
+## Choosing an autorun option
+
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`
+
+Each autorun can have its own settings. `countDependencies` and `cursorDependencies` control which changes trigger a rerun. `returnedCursorStrategy` controls how Meteor watches the returned documents when the query changes.
+
+Each example is a complete server module for a feed in an app with Meteor accounts. A user's `subscribedPosts` field holds an array of post IDs. Each notification has a `userId` and a boolean `read` field. The publications share these collections, defined once in `/imports/api/collections.js`.
+
+```javascript
+import { Mongo } from 'meteor/mongo';
+
+export const Posts = new Mongo.Collection('posts');
+export const Notifications = new Mongo.Collection('notifications');
+```
+
+### Recount when documents enter or leave a query
+
+Use `countDependencies: 'membership'` when an autorun publishes a count. For a plain `countAsync()` query, it tracks which document IDs match. Edits that leave the same IDs in the result can skip the recount.
+
+For an unread badge, editing a notification's text leaves the count unchanged. Marking it as read takes it out of the query, so the autorun recounts and the badge drops by one.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Notifications } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.unreadCount', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+    this.ready();
+  }, { countDependencies: 'membership' });
+});
+```
+
+Membership enables read tracking automatically. In a benchmark where four out of five writes only edited a title, it produced **80% fewer autorun executions** and used **about 30% less server CPU per write**. Delivery of counts that did change took about 9% longer at the 95th percentile. [Count benchmark](./bench/COUNT-MEMBERSHIP.md#measured-effect)
+
+### Return a live cursor without repeating the lookup
+
+Use `cursorDependencies: 'onRead'` when an autorun reads data to decide which cursor to return. By default, calling `find()` also makes the autorun depend on that cursor's results. With `'onRead'`, the lookup stays reactive and the returned cursor can deliver its own updates without repeating the lookup.
+
+In this feed, editing a post's title sends the new title straight to the client. Changing the user's `subscribedPosts` still reruns the function because it reads that list to choose the posts.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Posts } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.subscribedPosts', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find(
+      { _id: { $in: user?.subscribedPosts || [] } },
+      { fields: { title: 1 } }
+    );
+  }, { cursorDependencies: 'onRead' });
+});
+```
+
+A join that read posts and returned comments ran **50% fewer times** with `'onRead'` and delivered the same client updates. If the function also reads the comments to compute a value, edits to those comments still rerun it. [Read-tracking benchmark](./bench/PUBLICATION-MEASUREMENTS.md#read-tracking)
+
+### Reuse observers when a list of IDs changes
+
+Use `returnedCursorStrategy: 'incremental'` for a long-lived `$in` query when a few string IDs change at a time. The autorun still reruns to publish the new list. The server saves work on that run by keeping the observers that watch unchanged groups of IDs.
+
+This version of the feed publishes posts and the unread badge together. When a reader subscribes to one more post, the posts autorun updates its query and reuses observers. It also uses `'onRead'` so title edits skip the user lookup. The count autorun chooses `'membership'` independently.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Notifications, Posts } from '/imports/api/collections.js';
+
+Meteor.publish('myFeed.withOptions', function () {
+  const userId = this.userId;
+  if (!userId) return this.ready();
+
+  this.autorun(async () => {
+    const user = await Meteor.users.findOneAsync(userId, {
+      fields: { subscribedPosts: 1 },
+    });
+    return Posts.find(
+      { _id: { $in: user?.subscribedPosts || [] } },
+      { fields: { title: 1 } }
+    );
+  }, {
+    cursorDependencies: 'onRead',
+    returnedCursorStrategy: 'incremental',
+  });
+
+  this.autorun(async () => {
+    const count = await Notifications.find({ userId, read: false }).countAsync();
+    await this.setData('unreadCount', count);
+  }, { countDependencies: 'membership' });
+});
+```
+
+In the saved-post benchmark, adding this option to `'onRead'` used **about 61% less server CPU per list edit** and cut client update time **about 52% at the 95th percentile**. It opened more observers at startup and took longer to become ready, so it fits feeds that stay open across many list edits. [Supported queries](./PUBLICATION-OPTIONS.md#publish-a-changing-list-of-ids) · [Saved-post benchmark](./bench/PUBLICATION-MEASUREMENTS.md#incremental-observation)
+
+### Multiple autoruns
+
+The client subscribes once for both autoruns. This client module reads the posts from Minimongo and the count from the subscription when the feed first becomes ready.
+
+```javascript
+import { Meteor } from 'meteor/meteor';
+import { Posts } from '/imports/api/collections.js';
+
+const sub = Meteor.subscribe('myFeed.withOptions', {
+  async onReady() {
+    const posts = await Posts.find().fetchAsync();
+    const unreadCount = await sub.data('unreadCount');
+    console.log({ posts, unreadCount });
+  },
+});
+```
+
+Each `this.autorun(fn, options)` on the server has its own settings. With `Meteor.publishReactive(name, fn, options)`, the settings apply to its single autorun. [Ticket dashboard with three autoruns](./PUBLICATION-OPTIONS.md#a-ticket-dashboard-with-three-autoruns)
+
+With the default settings, `1.2.0-beta.0` used **about 30% less server CPU per write** than `1.1.1` in the sorted feed benchmark. Both versions sent identical updates. [Default upgrade benchmark](./bench/PUBLICATION-MEASUREMENTS.md#what-an-upgrade-gives-you-by-default)
+
 ## TypeScript Support
 
-This package includes TypeScript definitions for all its APIs. To enable type checking:
+> Starting with `nachocodoner:reactive-publish@1.2.0-beta.0`
 
-1. Make sure your app has [zodern:types](https://github.com/zodern/meteor-types) installed:
+Meteor 3.6 and later can load the package’s native TypeScript declarations for package exports, publication helpers, subscription data and autorun options. For example, the scrolling subscription can specify the type of the total it reads.
 
-```bash
-meteor add zodern:types
+```ts
+import { Meteor } from 'meteor/meteor';
+
+const sub = Meteor.subscribe('posts.infiniteScroll');
+const total = await sub.data<number | undefined>('countAll');
 ```
 
-2. Import the package using the Meteor import syntax:
+**Meteor 3.6 and later.** In an app configured for native Meteor types, run the following after adding the package or updating it. This regenerates the declarations for your editor and type checker.
 
-```typescript
-import { AsyncTracker, ReactiveVarAsync } from 'meteor/nachocodoner:reactive-publish';
+```sh
+meteor types
 ```
 
-This package extends Meteor's core types to add reactive publishing capabilities. The type definitions include:
+If you are switching an existing app to native types, include `./.meteor/types/packages.d.ts` in your app's `tsconfig.json` and map `meteor/*` to `./.meteor/types/packages/*`. Keep the app's source files in the TypeScript project. Meteor skips native generation when the app lists `zodern:types` directly. [Meteor's provider setup and migration guide](https://docs.meteor.com/cli/using-core-types)
 
-- Extensions to `Meteor.publish` context with the `autorun`, `data` and `setData` methods
-- The `Meteor.publishReactive` function
-- `AsyncTracker` and `ReactiveVarAsync` with full generic type support
+**Earlier Meteor 3 releases.** Use `meteor add zodern:types` in an app that needs the legacy declarations. Apps already using that provider can keep their existing configuration and package imports. [Legacy provider setup](https://github.com/zodern/meteor-types)
+
+## Development
+
+Use Node 22.12 or newer and install Meteor. From this repository:
+
+```sh
+npm ci
+npm run lint
+npm run test:ci
+npm run test:types
+npm run bench:setup
+npm run bench:test
+npm run bench -- doctor
+npm run bench:smoke
+```
+
+`test:ci` tests this checkout explicitly and defaults to the release in
+`bench/config/runtime-lock.json`. Use `npm run test:ci -- --release 3.5.2`
+to test another release. It uses Puppeteer's downloaded Chrome or an installed
+Chrome on macOS/Linux; set `PUPPETEER_EXECUTABLE_PATH` to select another executable.
+If Chrome is already installed, `PUPPETEER_SKIP_DOWNLOAD=true PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm ci`
+avoids downloading additional browsers. Every PR runs lint, the benchmark harness unit
+tests, and client/server package tests on Meteor 3.3.2 and 3.6. The `test:types`
+check generates the declarations in a Meteor 3.6 app and type-checks its package imports.
+Use Meteor 3.6 or later to publish a release with native declaration metadata.
+Pull requests that change the package runtime, its build configuration or the core test runner also run Meteor's core package tests. Each Mongo backend runs once on unmodified core and once with this package loaded. The same checks run on pushes to `master` and can be started manually. [Core verification guide](./bench/CORE-TESTING.md)
+
+After `npm run bench:setup`, run `npm run test:observers -- native` or
+`npm run test:observers -- redis` for the live DDP cursor regressions. Both
+start a temporary Meteor app and Mongo replica set. The Redis lane also needs
+`redis-server` and `redis-cli` on `PATH`; it starts its own server and uses
+`cultofcoders:redis-oplog@3.0.1`. Applications using Mongo's native oplog do
+not need Redis. The tests cover cold readiness, actual reads vs. returned
+cursors, consecutive parent changes, and restoring a withdrawn result.
+
+See the [benchmark guide](./bench/README.md) for isolated databases, paired
+comparisons, calibration, profiling, and interpretation of measurements.
+The [regression audit](./bench/REGRESSION-AUDIT.md) records the branch/base test
+comparison, test synchronization fixes, and remaining verification.
 
 ## Roadmap
 
@@ -285,6 +511,8 @@ This package extends Meteor's core types to add reactive publishing capabilities
     - Support for publishing derived data reactively
 
 - **Performance**
+    - [Run the repository benchmark suite](./bench/README.md) for DDP workloads, library comparisons, and regression reports
+    - Use `npm run bench:comprehensive` for repeated CPU, memory, event-loop, GC, load, retention, and MongoDB comparisons with publish-composite
     - [Run benchmarks](https://github.com/meteor/performance) to identify performance improvement opportunities
     - Compare results with [`reywood:publish-composite`](https://github.com/Meteor-Community-Packages/meteor-publish-composite) to ensure equal or better behavior
 

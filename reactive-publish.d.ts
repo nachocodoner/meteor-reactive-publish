@@ -1,0 +1,271 @@
+import 'meteor/meteor';
+
+/** Options for one autorun. Each sibling or nested autorun chooses its own settings. */
+export type CursorDependencyOptions =
+  | {
+      /** The default 'onFind' tracks cursor creation. 'onRead' tracks calls
+       * such as fetchAsync() and countAsync(). Returned cursors stay live. */
+      cursorDependencies?: 'onFind' | 'onRead';
+      countDependencies?: 'documents';
+    }
+  | {
+      /** For an eligible countAsync(), track matching IDs entering or leaving
+       * the query. This enables onRead throughout this autorun. */
+      countDependencies: 'membership';
+      cursorDependencies?: 'onRead';
+    };
+
+export type PublicationAutorunOptions = CursorDependencyOptions & {
+  /** Reuse observers for retained IDs in a supported returned Mongo cursor.
+   * The default is 'standard'. */
+  returnedCursorStrategy?: 'standard' | 'incremental';
+};
+
+type AsyncTrackerOptions = CursorDependencyOptions & {
+  onError?: (message: string, error: unknown) => void;
+  parent?: AsyncTrackerComputation | null;
+};
+
+/**
+ * AsyncTrackerDependency class for managing reactive dependencies
+ * @template T The type of value this dependency is tracking
+ */
+export declare class AsyncTrackerDependency<T = any> {
+  constructor();
+
+  /**
+   * Establishes a dependency on the current computation
+   * @returns {boolean} True if a dependency was established
+   */
+  depend(): boolean;
+
+  /**
+   * Notifies dependents of changes asynchronously
+   */
+  changed(): Promise<void>;
+
+  /**
+   * Notifies dependents of changes synchronously
+   */
+  changedSync(): void;
+
+  /**
+   * Checks if there are any dependents
+   * @returns {boolean} True if there are dependents
+   */
+  hasDependents(): boolean;
+}
+
+/**
+ * AsyncTrackerComputation class representing a reactive computation
+ * @template T The return type of the computation function
+ */
+export declare class AsyncTrackerComputation<T = any> {
+  constructor(
+    runFunc: (computation: AsyncTrackerComputation<T>) => T | Promise<T>,
+    options?: AsyncTrackerOptions
+  );
+
+  /**
+   * The ID of this computation
+   */
+  _id: number;
+
+  /**
+   * Whether this is the first run of the computation
+   */
+  firstRun: boolean;
+
+  /**
+   * Whether the computation has been stopped
+   */
+  stopped: boolean;
+
+  /**
+   * Whether the computation has been invalidated
+   */
+  invalidated: boolean;
+
+  /**
+   * Register a callback to run before the computation runs
+   * @param {Function} fn The callback function
+   */
+  beforeRun(fn: (computation: AsyncTrackerComputation<T>) => void): void;
+
+  /**
+   * Register a callback to run after the computation runs
+   * @param {Function} fn The callback function
+   */
+  afterRun(fn: (computation: AsyncTrackerComputation<T>) => void): void;
+
+  /**
+   * Register a callback to run when the computation is invalidated
+   * @param {Function} fn The callback function
+   */
+  onInvalidate(fn: (computation: AsyncTrackerComputation<T>) => void): void;
+
+  /**
+   * Register a callback to run when the computation is stopped
+   * @param {Function} fn The callback function
+   */
+  onStop(fn: (computation: AsyncTrackerComputation<T>) => void): void;
+
+  /** Clear this computation's dependencies and notify its invalidation callbacks. */
+  invalidate(): void;
+
+  /**
+   * Stop the computation
+   */
+  stop(): void;
+
+  /**
+   * Rerun once if invalidated (no-op if running)
+   */
+  flush(): Promise<void>;
+
+  /**
+   * Force an immediate re-run
+   */
+  run(): Promise<void>;
+}
+
+/**
+ * AsyncTracker class for managing reactive computations
+ */
+export declare class AsyncTracker {
+  /**
+   * Create a reactive computation
+   * @template T The return type of the computation function
+   * @param {Function} f The function to run reactively
+   * @param {Object} options Options for the computation
+   * @returns {AsyncTrackerComputation<T>} The computation
+   */
+  static autorun<T = any>(
+    f: (computation: AsyncTrackerComputation<T>) => T | Promise<T>,
+    options?: AsyncTrackerOptions
+  ): AsyncTrackerComputation<T>;
+
+  /** Get the computation that is running in the current async context. */
+  static currentComputation(): AsyncTrackerComputation | null | undefined;
+
+  /** Run a function with the specified computation as its current context. */
+  static runWith<T>(store: AsyncTrackerComputation | null, fn: () => T): T;
+
+  /** Wait for queued reactions to run. */
+  static drainReactions(): Promise<void>;
+
+  /**
+   * Run a function with no current computation
+   * @template T The return type of the function
+   * @param {Function} f The function to run
+   * @returns {Promise<T>} The result of the function
+   */
+  static nonreactive<T>(f: () => T | Promise<T>): Promise<T>;
+
+  /**
+   * The AsyncTrackerDependency class
+   */
+  static Dependency: typeof AsyncTrackerDependency;
+}
+
+/**
+ * ReactiveVarAsync class for reactive variables with async support
+ */
+export declare class ReactiveVarAsync<T> {
+  /**
+   * Create a reactive variable
+   * @param {T} initialValue The initial value
+   * @param {Function} equalsFunc Optional equality function
+   */
+  constructor(initialValue: T, equalsFunc?: (a: T, b: T) => boolean);
+
+  /**
+   * Get the current value and establish a dependency
+   * @returns {T} The current value
+   */
+  get(): T;
+
+  /**
+   * Set a new value and notify dependents asynchronously
+   * @param {T} newValue The new value
+   */
+  set(newValue: T): Promise<void>;
+
+  /**
+   * Set a new value and notify dependents synchronously
+   * @param {T} newValue The new value
+   */
+  setSync(newValue: T): void;
+
+  /**
+   * Get a string representation of the variable
+   * @returns {string} The string representation
+   */
+  toString(): string;
+}
+
+export interface SubscriptionDataMethods {
+  /**
+   * Get data from the subscription
+   * @template T The type of the data
+   * @param {string|object} [path] Optional path to get specific data
+   * @param {Function} [equalsFunc] Optional equality function
+   * @returns {Promise<T>} The data
+   */
+  data<T = any>(
+    path?: string | object,
+    equalsFunc?: (a: T, b: T) => boolean
+  ): Promise<T>;
+
+  /**
+   * Set data in the subscription
+   * @param {string|object} path Path or object with data to set
+   * @param {any} [value] Value to set (not needed if path is an object)
+   * @returns {Promise<void>}
+   */
+  setData(path: string | object, value?: any): Promise<void>;
+}
+
+declare module 'meteor/meteor' {
+  namespace Meteor {
+    /** A named publication can return the handle created by this.autorun(). */
+    function publish<Args extends any[]>(
+      name: string,
+      publishFunction: (
+        this: Subscription,
+        ...args: Args
+      ) => AsyncTrackerComputation | Promise<AsyncTrackerComputation>,
+      options?: { is_auto: boolean }
+    ): void;
+
+    /**
+     * Create a reactive publication
+     * @template T The return type of the publish function
+     * @template Args The types of the arguments passed to the publish function
+     * @param {string} name The name of the publication
+     * @param {Function} publishFunction The publish function
+     * @param {Object} options Options for the publication
+     */
+    function publishReactive<T = any, Args extends any[] = any[]>(
+      name: string,
+      publishFunction: (this: Subscription, ...args: Args) => T | Promise<T>,
+      options?: PublicationAutorunOptions & Record<string, any>
+    ): void;
+  }
+
+  interface Subscription extends SubscriptionDataMethods {
+    /**
+     * Run a function reactively in the publish context
+     * @template T The return type of the computation function
+     * @param {Function} runFunc The function to run reactively
+     * @returns {Promise<AsyncTrackerComputation<T>>} The computation handle
+     */
+    autorun<T = any>(
+      runFunc: (
+        this: Subscription,
+        computation: AsyncTrackerComputation<T>
+      ) => T | Promise<T>,
+      options?: PublicationAutorunOptions
+    ): Promise<AsyncTrackerComputation<T>>;
+  }
+}

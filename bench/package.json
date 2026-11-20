@@ -1,0 +1,23 @@
+{
+  "name": "reactive-publish-bench",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "bench": "node cli.mjs",
+    "smoke": "node cli.mjs run --profile smoke --scenario sorted-window --adapter reactive",
+    "format": "prettier --write '**/*.{mjs,js,json,yml,md}'"
+  },
+  "dependencies": {
+    "ejson": "2.2.3",
+    "mongodb": "6.21.0",
+    "puppeteer-core": "25.12.0",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "prettier": "3.5.3"
+  }
+}
