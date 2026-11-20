@@ -4,6 +4,13 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 ---
 
+## [1.2.0-beta.3]
+
+- Serialize subscription metadata initialization, writes and cleanup when login or logout recreates a publication under the same subscription ID. Concurrent `setData` calls could previously fail with a duplicate metadata ID, including on stable 1.1.1.
+- Keep retired publication callbacks from reading or changing replacement metadata, and prevent old cleanup from removing the replacement's data. Metadata remains lazy and belongs to the publication; stopping a child autorun retains its metadata keys.
+
+---
+
 ## [1.2.0-beta.2]
 
 - Fix a cold returned cursor hanging before `ready` with `cursorDependencies: 'onRead'` and Redis Oplog. The driver's initial fetch no longer counts as a read by the publication, including when the app initializes the driver itself. Edits still reach the subscriber without rerunning a returned-only cursor.

@@ -37,7 +37,7 @@ From your Meteor application, install the current stable release.
 meteor add nachocodoner:reactive-publish
 ```
 
-To test the beta, select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.2`.
+To test the beta, select it with `meteor add nachocodoner:reactive-publish@=1.2.0-beta.3`.
 
 ## Usage
 
