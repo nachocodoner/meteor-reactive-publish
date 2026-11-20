@@ -8,6 +8,8 @@ All changes to `nachocodoner:reactive-publish` are documented here.
 
 - Serialize subscription metadata initialization, writes and cleanup when login or logout recreates a publication under the same subscription ID. Concurrent `setData` calls could previously fail with a duplicate metadata ID, including on stable 1.1.1.
 - Keep retired publication callbacks from reading or changing replacement metadata, and prevent old cleanup from removing the replacement's data. Metadata remains lazy and belongs to the publication; stopping a child autorun retains its metadata keys.
+- Retry metadata initialization on a later access after an insertion fails, without hiding the original failure or claiming ownership of a missing row.
+- Acknowledge client `setData` writes only after the server accepts them, including for active publications registered before the wrapper. Reject unavailable subscriptions with `subscription-data-unavailable`; interrupted writes are not automatically replayed into a replacement session.
 
 ---
 

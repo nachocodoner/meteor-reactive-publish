@@ -170,6 +170,10 @@ Meteor.publish('recent-posts', function () {
 
 These examples show how to publish derived data reactively, allowing clients to receive updates without restarting subscriptions.
 
+Client `sub.setData(path, value)` returns a promise that waits for the server's acknowledgment. It rejects with `subscription-data-unavailable` when the subscription is no longer active. A sent write interrupted before its result is known can reject with `invocation-failed`. This does not prove the write was not applied, and the library does not automatically replay it. After reconnecting, wait for readiness, confirm the current user, and inspect current metadata before deciding to submit a new write.
+
+Metadata belongs to the current server publication and resets when login or logout replaces that publication. Clients can write metadata, so server authorization must use the current user and trusted records rather than metadata values.
+
 #### Infinite scrolling and counts
 
 One subscription publishes the total number of posts and a page of results. The first autorun sends the total with `this.setData`. The second reads the page size and returns the posts.
